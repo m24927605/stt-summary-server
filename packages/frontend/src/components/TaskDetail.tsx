@@ -25,10 +25,11 @@ export function TaskDetail({ task }: Props) {
     return <div className="task-detail empty">Select a task to view details</div>;
   }
 
-  const displayStatus = sseData?.status || task.status;
+  const isTerminal = task.status === 'completed' || task.status === 'failed';
+  const displayStatus = isTerminal ? task.status : (sseData?.status || task.status);
   const displayTranscript = sseData?.transcript || task.transcript;
   const displaySummary = sseData?.summary || task.summary;
-  const displayError = sseData?.error || task.error;
+  const displayError = isTerminal ? task.error : (sseData?.error || task.error);
 
   return (
     <div className="task-detail">

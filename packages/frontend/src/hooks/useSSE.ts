@@ -15,7 +15,10 @@ export function useSSE(taskId: string | null) {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    if (!taskId) return;
+    if (!taskId) {
+      setData(null);
+      return;
+    }
 
     const es = new EventSource(`/api/tasks/${taskId}/events`);
     eventSourceRef.current = es;
