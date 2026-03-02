@@ -64,12 +64,13 @@ Upload an audio file for transcription and summarization.
 
 - **Content-Type**: `multipart/form-data`
 - **Field**: `file` (required) -- audio file (`.wav` or `.mp3`, max 25 MB)
-- **Response**: `201 Created`
 
 ```bash
 curl -X POST http://localhost:3000/api/tasks \
   -F "file=@recording.wav"
 ```
+
+**Success** — `201 Created`:
 
 ```json
 {
@@ -77,6 +78,22 @@ curl -X POST http://localhost:3000/api/tasks \
   "status": "pending",
   "originalFilename": "recording.wav",
   "createdAt": "2026-03-02T12:00:00.000Z"
+}
+```
+
+**Error** — `400 Bad Request` (no file):
+
+```json
+{
+  "error": "No file uploaded"
+}
+```
+
+**Error** — `400 Bad Request` (invalid file type):
+
+```json
+{
+  "error": "Invalid file type: audio/ogg. Allowed: .wav, .mp3"
 }
 ```
 
@@ -88,6 +105,8 @@ List all tasks, ordered by creation date (newest first).
 curl http://localhost:3000/api/tasks
 ```
 
+**Success** — `200 OK`:
+
 ```json
 [
   {
@@ -95,12 +114,24 @@ curl http://localhost:3000/api/tasks
     "status": "completed",
     "step": null,
     "originalFilename": "recording.wav",
-    "transcript": "Hello, this is a test...",
+    "transcript": "Hello, this is a test recording...",
     "summary": "A brief test recording greeting.",
     "error": null,
     "createdAt": "2026-03-02T12:00:00.000Z",
     "updatedAt": "2026-03-02T12:01:00.000Z",
     "completedAt": "2026-03-02T12:01:00.000Z"
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "status": "processing",
+    "step": "transcribing",
+    "originalFilename": "meeting.mp3",
+    "transcript": null,
+    "summary": null,
+    "error": null,
+    "createdAt": "2026-03-02T12:05:00.000Z",
+    "updatedAt": "2026-03-02T12:05:30.000Z",
+    "completedAt": null
   }
 ]
 ```
@@ -113,18 +144,45 @@ Get a single task by ID, including transcript and summary.
 curl http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
+**Success** — `200 OK`:
+
 ```json
 {
   "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "completed",
   "step": null,
   "originalFilename": "recording.wav",
-  "transcript": "Hello, this is a test...",
+  "transcript": "Hello, this is a test recording...",
   "summary": "A brief test recording greeting.",
   "error": null,
   "createdAt": "2026-03-02T12:00:00.000Z",
   "updatedAt": "2026-03-02T12:01:00.000Z",
   "completedAt": "2026-03-02T12:01:00.000Z"
+}
+```
+
+**Error** — `404 Not Found`:
+
+```json
+{
+  "error": "Task not found"
+}
+```
+
+**Failed task example** — `200 OK`:
+
+```json
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+  "status": "failed",
+  "step": "transcribing",
+  "originalFilename": "corrupted.wav",
+  "transcript": null,
+  "summary": null,
+  "error": "Transcription failed: Invalid audio format",
+  "createdAt": "2026-03-02T12:10:00.000Z",
+  "updatedAt": "2026-03-02T12:10:15.000Z",
+  "completedAt": null
 }
 ```
 
@@ -144,6 +202,29 @@ Events emitted:
 | `completed` | Task finishes successfully | `{ status, transcript, summary }` |
 | `failed` | Task fails | `{ status, error }` |
 
+**SSE stream example** (successful task):
+
+```
+event: status
+data: {"status":"processing","step":"transcribing","message":"Status changed"}
+
+event: status
+data: {"status":"processing","step":"summarizing","message":"Status changed"}
+
+event: completed
+data: {"status":"completed","transcript":"Hello, this is a test recording...","summary":"A brief test recording greeting."}
+```
+
+**SSE stream example** (failed task):
+
+```
+event: status
+data: {"status":"processing","step":"transcribing","message":"Status changed"}
+
+event: failed
+data: {"status":"failed","error":"Transcription failed: Invalid audio format"}
+```
+
 ### `GET /api/health`
 
 Health check endpoint.
@@ -151,6 +232,8 @@ Health check endpoint.
 ```bash
 curl http://localhost:3000/api/health
 ```
+
+**Success** — `200 OK`:
 
 ```json
 {
@@ -173,7 +256,7 @@ All variables are configured in `.env` (copy from `.env.example`):
 | `SERVER_PORT` | API server port | `3000` |
 | `UPLOAD_DIR` | Directory for uploaded audio files | `/app/uploads` |
 | `WHISPER_MODEL` | OpenAI Whisper model name | `whisper-1` |
-| `GPT_MODEL` | OpenAI GPT model name | `gpt-4o-mini` |
+| `GPT_MODEL` | OpenAI GPT model name | `gpt-4o` |
 
 ## Development
 
