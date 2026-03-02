@@ -233,6 +233,41 @@
   font-size: 0.7rem;
 }
 
+/* Markdown in summary */
+.markdown h1, .markdown h2, .markdown h3 {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.markdown h1 { font-size: 1.1rem; }
+.markdown h2 { font-size: 1rem; }
+.markdown h3 { font-size: 0.95rem; }
+
+.markdown p {
+  margin-bottom: 0.5rem;
+}
+
+.markdown ul, .markdown ol {
+  padding-left: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown strong {
+  color: var(--text-primary);
+}
+
+.markdown code {
+  background: var(--bg-primary);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
 @media (max-width: 768px) {
   .main-content {
     grid-template-columns: 1fr;
