@@ -19,6 +19,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Build shared types
+        run: npx tsc --build shared/tsconfig.json
+
       - name: Type check server
         run: npx tsc --noEmit --project packages/server/tsconfig.json
 
