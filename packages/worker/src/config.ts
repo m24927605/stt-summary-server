@@ -6,5 +6,5 @@ export const config = {
   uploadDir: env.UPLOAD_DIR || './uploads',
   openaiApiKey: env.OPENAI_API_KEY || '',
   whisperModel: env.WHISPER_MODEL || 'whisper-1',
-  gptModel: env.GPT_MODEL || 'gpt-4o-mini',
+  gptModel: env.GPT_MODEL || 'gpt-4o',
 };
