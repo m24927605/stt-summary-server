@@ -22,9 +22,6 @@ export async function startConsumer(): Promise<void> {
       await channel.assertQueue(DEAD_LETTER_QUEUE, { durable: true });
       await channel.assertQueue(QUEUE_NAME, {
         durable: true,
-        arguments: {
-          'x-dead-letter-routing-key': DEAD_LETTER_QUEUE,
-        },
       });
 
       await channel.prefetch(1);
