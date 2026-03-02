@@ -10,7 +10,7 @@ export async function summarizeText(transcript: string): Promise<string> {
       {
         role: 'system',
         content:
-          'You are a helpful assistant that creates concise summaries. Summarize the following transcript in a clear, structured format. Include key points, decisions, and action items if any. Respond in the same language as the transcript.',
+          'You are a helpful assistant that creates concise summaries. Summarize the following transcript in a clear, structured format. Include: 1) key points, 2) decisions made, 3) to-do tasks with responsible person and deadline if mentioned. Respond in the same language as the transcript.',
       },
       {
         role: 'user',
