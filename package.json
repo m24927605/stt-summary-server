@@ -1,0 +1,8 @@
+{
+  "name": "stt-summary-server",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "shared"
+  ]
+}
