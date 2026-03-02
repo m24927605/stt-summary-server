@@ -19,6 +19,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=packages/server/prisma/schema.prisma
+
       - name: Build shared types
         run: npx tsc --build shared/tsconfig.json
 
