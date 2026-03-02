@@ -124,7 +124,7 @@ curl http://localhost:3000/api/tasks
   {
     "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
     "status": "processing",
-    "step": "transcribing",
+    "step": "stt",
     "originalFilename": "meeting.mp3",
     "transcript": null,
     "summary": null,
@@ -175,7 +175,7 @@ curl http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 {
   "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
   "status": "failed",
-  "step": "transcribing",
+  "step": null,
   "originalFilename": "corrupted.wav",
   "transcript": null,
   "summary": null,
@@ -206,10 +206,10 @@ Events emitted:
 
 ```
 event: status
-data: {"status":"processing","step":"transcribing","message":"Status changed"}
+data: {"status":"processing","step":"stt","message":"Transcribing audio..."}
 
 event: status
-data: {"status":"processing","step":"summarizing","message":"Status changed"}
+data: {"status":"processing","step":"llm","message":"Generating summary..."}
 
 event: completed
 data: {"status":"completed","transcript":"Hello, this is a test recording...","summary":"A brief test recording greeting."}
@@ -219,7 +219,7 @@ data: {"status":"completed","transcript":"Hello, this is a test recording...","s
 
 ```
 event: status
-data: {"status":"processing","step":"transcribing","message":"Status changed"}
+data: {"status":"processing","step":"stt","message":"Transcribing audio..."}
 
 event: failed
 data: {"status":"failed","error":"Transcription failed: Invalid audio format"}
@@ -257,6 +257,7 @@ All variables are configured in `.env` (copy from `.env.example`):
 | `UPLOAD_DIR` | Directory for uploaded audio files | `/app/uploads` |
 | `WHISPER_MODEL` | OpenAI Whisper model name | `whisper-1` |
 | `GPT_MODEL` | OpenAI GPT model name | `gpt-4o` |
+| `CORS_ORIGIN` | Allowed CORS origin for API requests | `http://localhost:8080` |
 
 ## Development
 

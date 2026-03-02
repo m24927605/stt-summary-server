@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { getDb } from '../plugins/db';
+import { config } from '../config';
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/api/tasks/:id/events', async (request, reply) => {
@@ -15,7 +16,7 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': config.corsOrigin,
     });
 
     let lastStatus = '';

@@ -6,4 +6,5 @@ export const config = {
   rabbitmqUrl: env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672',
   uploadDir: env.UPLOAD_DIR || './uploads',
   openaiApiKey: env.OPENAI_API_KEY || '',
+  corsOrigin: env.CORS_ORIGIN || 'http://localhost:8080',
 };

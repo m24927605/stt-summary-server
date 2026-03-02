@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-stt_summary}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,8 +18,8 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -40,6 +40,7 @@ services:
       SERVER_PORT: 3000
       UPLOAD_DIR: /app/uploads
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -58,7 +59,7 @@ services:
       UPLOAD_DIR: /app/uploads
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       WHISPER_MODEL: ${WHISPER_MODEL:-whisper-1}
-      GPT_MODEL: ${GPT_MODEL:-gpt-4o-mini}
+      GPT_MODEL: ${GPT_MODEL:-gpt-4o}
     volumes:
       - uploads_data:/app/uploads
     depends_on:

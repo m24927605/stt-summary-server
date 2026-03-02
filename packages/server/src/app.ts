@@ -6,6 +6,7 @@ import { taskRoutes } from './routes/tasks';
 import { eventRoutes } from './routes/events';
 import { connectQueue, disconnectQueue } from './plugins/rabbitmq';
 import { disconnectDb } from './plugins/db';
+import { config } from './config';
 
 export async function buildApp() {
   const app = Fastify({
@@ -13,7 +14,7 @@ export async function buildApp() {
   });
 
   await app.register(cors, {
-    origin: true,
+    origin: config.corsOrigin,
   });
 
   await app.register(multipart, {
