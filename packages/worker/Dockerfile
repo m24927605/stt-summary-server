@@ -1,17 +1,19 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-COPY package.json ./
+# Copy shared source and base config
 COPY shared/ ./shared/
-COPY packages/worker/package.json ./packages/worker/
-
-RUN cd packages/worker && npm install
-
-COPY packages/worker/ ./packages/worker/
 COPY tsconfig.base.json ./
 
-# Build shared module
-RUN cd shared && npx tsc
+# Install worker dependencies (no root package.json to avoid workspace hoisting)
+COPY packages/worker/package.json ./packages/worker/
+RUN cd packages/worker && npm install
+
+# Copy worker source
+COPY packages/worker/ ./packages/worker/
+
+# Build shared module using worker's installed TypeScript
+RUN ./packages/worker/node_modules/.bin/tsc --project shared/tsconfig.json
 
 # Generate Prisma client and build worker
 RUN cd packages/worker && npx prisma generate && npx tsc

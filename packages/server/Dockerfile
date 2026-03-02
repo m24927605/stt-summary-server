@@ -1,20 +1,19 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy root workspace files
-COPY package.json ./
+# Copy shared source and base config
 COPY shared/ ./shared/
-COPY packages/server/package.json ./packages/server/
+COPY tsconfig.base.json ./
 
-# Install all dependencies
+# Install server dependencies (no root package.json to avoid workspace hoisting)
+COPY packages/server/package.json ./packages/server/
 RUN cd packages/server && npm install
 
 # Copy server source
 COPY packages/server/ ./packages/server/
-COPY tsconfig.base.json ./
 
-# Build shared module
-RUN cd shared && npx tsc
+# Build shared module using server's installed TypeScript
+RUN ./packages/server/node_modules/.bin/tsc --project shared/tsconfig.json
 
 # Generate Prisma client and build server
 RUN cd packages/server && npx prisma generate && npx tsc
