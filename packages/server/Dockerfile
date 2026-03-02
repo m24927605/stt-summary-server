@@ -28,6 +28,9 @@ COPY --from=builder /app/packages/server/package.json ./
 COPY --from=builder /app/packages/server/prisma ./prisma
 COPY --from=builder /app/shared ./shared
 
+# Create symlink so Node.js can resolve 'shared/*' imports at runtime
+RUN mkdir -p /app/node_modules && ln -s /app/shared /app/node_modules/shared
+
 RUN mkdir -p /app/uploads
 EXPOSE 3000
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]

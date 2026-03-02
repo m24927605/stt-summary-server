@@ -25,4 +25,7 @@ COPY --from=builder /app/packages/worker/package.json ./
 COPY --from=builder /app/packages/worker/prisma ./prisma
 COPY --from=builder /app/shared ./shared
 
+# Create symlink so Node.js can resolve 'shared/*' imports at runtime
+RUN mkdir -p /app/node_modules && ln -s /app/shared /app/node_modules/shared
+
 CMD ["node", "dist/index.js"]
