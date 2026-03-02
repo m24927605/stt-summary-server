@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check server
+        run: npx tsc --noEmit --project packages/server/tsconfig.json
+
+      - name: Type check worker
+        run: npx tsc --noEmit --project packages/worker/tsconfig.json
+
+      - name: Test server
+        run: npm run test --workspace=packages/server
+
+      - name: Test worker
+        run: npm run test --workspace=packages/worker

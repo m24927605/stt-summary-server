@@ -1,17 +1,24 @@
-import { promises as fs } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { config } from '../config';
 
-export async function ensureUploadDir(): Promise<void> {
-  await fs.mkdir(config.uploadDir, { recursive: true });
-}
+const s3Client = new S3Client({
+  region: config.s3Region,
+  ...(config.s3Endpoint && { endpoint: config.s3Endpoint, forcePathStyle: true }),
+  credentials: {
+    accessKeyId: config.s3AccessKeyId,
+    secretAccessKey: config.s3SecretAccessKey,
+  },
+});
 
 export async function saveFile(buffer: Buffer, originalFilename: string): Promise<string> {
-  await ensureUploadDir();
   const ext = path.extname(originalFilename);
-  const filename = `${uuidv4()}${ext}`;
-  const filePath = path.join(config.uploadDir, filename);
-  await fs.writeFile(filePath, buffer);
-  return filePath;
+  const key = `uploads/${uuidv4()}${ext}`;
+  await s3Client.send(new PutObjectCommand({
+    Bucket: config.s3Bucket,
+    Key: key,
+    Body: buffer,
+  }));
+  return key;
 }

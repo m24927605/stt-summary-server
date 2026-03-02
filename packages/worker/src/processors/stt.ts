@@ -1,11 +1,14 @@
-import OpenAI from 'openai';
-import fs from 'fs';
+import OpenAI, { toFile } from 'openai';
+import path from 'path';
 import { config } from '../config';
+import { downloadFile } from '../services/storage';
 
 const openai = new OpenAI({ apiKey: config.openaiApiKey });
 
-export async function transcribeAudio(filePath: string): Promise<string> {
-  const file = fs.createReadStream(filePath);
+export async function transcribeAudio(fileKey: string): Promise<string> {
+  const buffer = await downloadFile(fileKey);
+  const filename = path.basename(fileKey);
+  const file = await toFile(buffer, filename);
 
   const transcription = await openai.audio.transcriptions.create({
     file,

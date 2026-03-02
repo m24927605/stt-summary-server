@@ -95,7 +95,7 @@ export async function startConsumer(): Promise<void> {
   });
 }
 
-async function processTask(taskId: string): Promise<void> {
+export async function processTask(taskId: string): Promise<void> {
   await prisma.task.update({
     where: { id: taskId },
     data: { status: 'processing', step: 'stt' },

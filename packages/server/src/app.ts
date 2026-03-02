@@ -5,7 +5,7 @@ import { MAX_FILE_SIZE } from 'shared/constants';
 import { taskRoutes } from './routes/tasks';
 import { eventRoutes } from './routes/events';
 import { connectQueue, disconnectQueue } from './plugins/rabbitmq';
-import { disconnectDb } from './plugins/db';
+import { getDb, disconnectDb } from './plugins/db';
 import { config } from './config';
 
 export async function buildApp() {
@@ -27,8 +27,21 @@ export async function buildApp() {
   await connectQueue();
 
   // Routes
-  app.get('/api/health', async () => {
-    return { status: 'ok' };
+  app.get('/api/health', async (_request, reply) => {
+    try {
+      const db = getDb();
+      await db.$queryRaw`SELECT 1`;
+      return {
+        status: 'ok',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+      };
+    } catch (err) {
+      return reply.status(503).send({
+        status: 'degraded',
+        error: err instanceof Error ? err.message : 'Database connection failed',
+      });
+    }
   });
 
   await app.register(taskRoutes);
