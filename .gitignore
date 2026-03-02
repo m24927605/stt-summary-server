@@ -4,3 +4,11 @@ dist/
 uploads/
 *.log
 .DS_Store
+shared/constants.js
+shared/constants.d.ts
+shared/constants.js.map
+shared/constants.d.ts.map
+shared/types.js
+shared/types.d.ts
+shared/types.js.map
+shared/types.d.ts.map

@@ -3,10 +3,14 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
+    "baseUrl": ".",
     "paths": {
       "shared/*": ["../../shared/*"]
-    }
+    },
+    "moduleResolution": "node"
   },
   "include": ["src/**/*"],
-  "references": []
+  "references": [
+    { "path": "../../shared" }
+  ]
 }
