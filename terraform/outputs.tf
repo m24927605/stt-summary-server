@@ -4,7 +4,23 @@
 
 output "alb_url" {
   description = "Application URL (ALB DNS)"
-  value       = "http://${aws_lb.main.dns_name}"
+  value       = "https://${var.domain_name}"
+}
+
+output "acm_validation_records" {
+  description = "DNS records to add in Cloudflare for ACM certificate validation"
+  value = {
+    for dvo in aws_acm_certificate.main.domain_validation_options : dvo.domain_name => {
+      type  = dvo.resource_record_type
+      name  = dvo.resource_record_name
+      value = dvo.resource_record_value
+    }
+  }
+}
+
+output "alb_dns_name" {
+  description = "ALB DNS name (point CNAME to this)"
+  value       = aws_lb.main.dns_name
 }
 
 output "rds_endpoint" {

@@ -49,7 +49,7 @@ resource "aws_ecs_task_definition" "server" {
 
     environment = [
       { name = "SERVER_PORT", value = "3000" },
-      { name = "CORS_ORIGIN", value = "http://${aws_lb.main.dns_name}" },
+      { name = "CORS_ORIGIN", value = "https://${var.domain_name}" },
       { name = "S3_ENDPOINT", value = "" },
       { name = "S3_BUCKET", value = aws_s3_bucket.uploads.id },
       { name = "S3_REGION", value = var.aws_region },
@@ -197,7 +197,7 @@ resource "aws_ecs_service" "server" {
     container_port   = 3000
   }
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
 
   tags = { Name = "${var.project_name}-server-svc" }
 }
@@ -237,7 +237,7 @@ resource "aws_ecs_service" "frontend" {
     container_port   = 8080
   }
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
 
   tags = { Name = "${var.project_name}-frontend-svc" }
 }
