@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the architecture of the STT Summary Server, a speech-to-text summarization system built with a microservices-oriented approach using Fastify, RabbitMQ, PostgreSQL, and OpenAI APIs.
+This document describes the architecture of the STT Summary Server, a speech-to-text summarization system built with a microservices-oriented approach using Fastify, RabbitMQ, PostgreSQL, MinIO (S3-compatible), and OpenAI APIs.
 
 ## System Architecture
 
@@ -13,14 +13,17 @@ graph TB
     MQ["RabbitMQ<br/>:5672"]
     Worker["Worker"]
     DB["PostgreSQL<br/>:5432"]
+    S3["MinIO / S3<br/>:9000"]
     OpenAI["OpenAI API"]
 
     Client -- "Upload audio<br/>(multipart/form-data)" --> API
     Client -- "SSE<br/>(GET /api/tasks/:id/events)" --> API
+    API -- "Upload audio object" --> S3
     API -- "Publish task" --> MQ
     API -- "Read/Write tasks" --> DB
     MQ -- "Consume task" --> Worker
     Worker -- "Read/Write tasks" --> DB
+    Worker -- "Download audio object" --> S3
     Worker -- "Whisper STT" --> OpenAI
     Worker -- "GPT Summary" --> OpenAI
 ```
@@ -34,6 +37,7 @@ graph TB
 | **RabbitMQ** | Message broker on port 5672 (management UI on 15672). Decouples task creation from processing. Supports retries with dead-letter queue. |
 | **Worker** | Background consumer that processes tasks from the queue. Calls OpenAI Whisper for transcription and GPT for summarization. |
 | **PostgreSQL** | Primary data store on port 5432. Stores task metadata, transcripts, summaries, and status information via Prisma ORM. |
+| **MinIO / S3** | Object storage for uploaded audio files. API writes objects and worker reads them using S3-compatible SDK calls. |
 | **OpenAI API** | External service providing Whisper (speech-to-text) and GPT (text summarization) capabilities. |
 
 ## Sequence Diagram
@@ -53,7 +57,7 @@ sequenceDiagram
     User->>FE: Select audio file
     FE->>API: POST /api/tasks (multipart/form-data)
     API->>API: Validate file type & size
-    API->>API: Save file to disk
+    API->>S3: Save audio file (S3 object)
     API->>DB: Create task (status: pending)
     API->>MQ: Publish {taskId} to task_queue
     API-->>FE: 201 Created {id, status, originalFilename}
@@ -64,6 +68,7 @@ sequenceDiagram
     MQ->>W: Consume message {taskId}
     W->>DB: Update status: processing, step: stt
     Note over FE: SSE event: status=processing, step=stt
+    W->>S3: Download audio file by key
     W->>OAI: Whisper API (audio file)
     OAI-->>W: Transcript text
     W->>DB: Save transcript
@@ -112,7 +117,7 @@ The system uses a single `tasks` table managed by Prisma ORM:
 | `status` | VARCHAR(20) | Current task status (`pending`, `processing`, `completed`, `failed`) |
 | `step` | VARCHAR(20) | Current processing step (`stt`, `llm`, or null) |
 | `original_filename` | VARCHAR(255) | Original uploaded file name |
-| `file_path` | VARCHAR(500) | Server-side path to the saved audio file |
+| `file_path` | VARCHAR(500) | S3 object key for the uploaded audio file |
 | `transcript` | TEXT | Whisper transcription output |
 | `summary` | TEXT | GPT summary output |
 | `error` | TEXT | Error message if task failed |

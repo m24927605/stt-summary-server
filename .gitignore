@@ -15,6 +15,9 @@ shared/types.d.ts.map
 *.pdf
 .claude/
 
+# Coverage
+coverage/
+
 # Terraform
 terraform/.terraform/
 terraform/*.tfstate

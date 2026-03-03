@@ -9,6 +9,7 @@ The system follows a producer-consumer architecture with five main components:
 - **Fastify API Server** -- Handles file uploads, REST endpoints, and SSE streaming
 - **RabbitMQ Worker** -- Asynchronously processes tasks (transcription + summarization)
 - **PostgreSQL** -- Stores task state, transcripts, and summaries (via Prisma ORM)
+- **MinIO (S3-compatible)** -- Stores uploaded audio files used by the worker
 - **React Frontend** -- Single-page app for uploading audio and viewing results in real-time
 - **Docker Compose** -- Orchestrates all services with health checks and shared volumes
 
@@ -55,6 +56,7 @@ Once running, access:
 | Frontend | [http://localhost:8080](http://localhost:8080) |
 | API Server | [http://localhost:3000](http://localhost:3000) |
 | RabbitMQ Management | [http://localhost:15672](http://localhost:15672) (guest/guest) |
+| MinIO Console | [http://localhost:9001](http://localhost:9001) (minioadmin/minioadmin) |
 
 ## API Documentation
 
@@ -237,7 +239,9 @@ curl http://localhost:3000/api/health
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "uptime": 123.456,
+  "timestamp": "2026-03-02T12:00:00.000Z"
 }
 ```
 
@@ -254,7 +258,11 @@ All variables are configured in `.env` (copy from `.env.example`):
 | `POSTGRES_DB` | PostgreSQL database name | `stt_summary` |
 | `RABBITMQ_URL` | RabbitMQ connection string | `amqp://guest:guest@rabbitmq:5672` |
 | `SERVER_PORT` | API server port | `3000` |
-| `UPLOAD_DIR` | Directory for uploaded audio files | `/app/uploads` |
+| `S3_ENDPOINT` | S3 endpoint URL (MinIO in local Docker) | `http://localhost:9000` |
+| `S3_BUCKET` | Bucket name for uploaded audio | `stt-uploads` |
+| `S3_REGION` | S3 region | `auto` |
+| `S3_ACCESS_KEY_ID` | S3 access key | `minioadmin` |
+| `S3_SECRET_ACCESS_KEY` | S3 secret key | `minioadmin` |
 | `WHISPER_MODEL` | OpenAI Whisper model name | `whisper-1` |
 | `GPT_MODEL` | OpenAI GPT model name | `gpt-4o` |
 | `CORS_ORIGIN` | Allowed CORS origin for API requests | `http://localhost:8080` |
@@ -272,7 +280,10 @@ cp .env.example .env
 # Edit .env:
 #   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/stt_summary
 #   RABBITMQ_URL=amqp://guest:guest@localhost:5672
-#   UPLOAD_DIR=./uploads
+#   S3_ENDPOINT=http://localhost:9000
+#   S3_BUCKET=stt-uploads
+#   S3_ACCESS_KEY_ID=minioadmin
+#   S3_SECRET_ACCESS_KEY=minioadmin
 
 # Generate Prisma client and run migrations
 cd packages/server

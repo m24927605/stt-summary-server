@@ -7,5 +7,8 @@
   ],
   "scripts": {
     "test": "npm run test --workspace=packages/server && npm run test --workspace=packages/worker"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.2.4"
   }
 }
