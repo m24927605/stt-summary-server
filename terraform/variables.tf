@@ -20,6 +20,12 @@ variable "environment" {
   default     = "production"
 }
 
+variable "domain_name" {
+  description = "Domain name for the application"
+  type        = string
+  default     = "voicebrief.xyz"
+}
+
 # ──────────────────────────────────────────
 # VPC
 # ──────────────────────────────────────────
@@ -192,12 +198,6 @@ variable "mq_password" {
 # ──────────────────────────────────────────
 # OpenAI
 # ──────────────────────────────────────────
-
-variable "domain_name" {
-  description = "Domain name for the application"
-  type        = string
-  default     = "voicebrief.xyz"
-}
 
 variable "openai_api_key" {
   description = "OpenAI API key"
