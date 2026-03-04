@@ -37,7 +37,7 @@ describe('event routes', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/tasks/non-existent/events',
+      url: '/api/tasks/non-existent/events?sessionId=test-session-id',
     });
 
     expect(response.statusCode).toBe(404);
@@ -54,7 +54,7 @@ describe('event routes', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/api/tasks/${task.id}/events`,
+      url: `/api/tasks/${task.id}/events?sessionId=test-session-id`,
     });
 
     expect(response.statusCode).toBe(200);
@@ -73,7 +73,7 @@ describe('event routes', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/api/tasks/${task.id}/events`,
+      url: `/api/tasks/${task.id}/events?sessionId=test-session-id`,
     });
 
     expect(response.statusCode).toBe(200);
@@ -147,7 +147,7 @@ describe('event routes', () => {
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events',
+        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -170,7 +170,7 @@ describe('event routes', () => {
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events',
+        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -193,7 +193,7 @@ describe('event routes', () => {
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events',
+        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -212,7 +212,7 @@ describe('event routes', () => {
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events',
+        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -230,7 +230,7 @@ describe('event routes', () => {
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events',
+        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -248,7 +248,7 @@ describe('event routes', () => {
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events',
+        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
       });
 
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
