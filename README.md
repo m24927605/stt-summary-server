@@ -64,15 +64,28 @@ Once running, access:
 
 ### Authentication
 
-All API endpoints (except `/api/health` and SSE `/api/tasks/:id/events`) require an API key via the `X-API-Key` header.
+All API endpoints (except `/api/health`) support two headers:
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `X-Session-Id` | Yes | UUID identifying the browser session. Tasks are scoped per session. |
+| `X-API-Key` | Conditional | Required when `API_KEY` env var is set. Disabled in local development. |
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
+curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
 ```
 
-When `API_KEY` is not set (local development), authentication is disabled.
+The frontend automatically generates and persists a session ID in `localStorage`.
 
-**Error** -- `401 Unauthorized` (missing or invalid key):
+**Error** -- `400 Bad Request` (missing session ID):
+
+```json
+{
+  "error": "Missing X-Session-Id header"
+}
+```
+
+**Error** -- `401 Unauthorized` (missing or invalid API key):
 
 ```json
 {
@@ -89,6 +102,7 @@ Upload an audio file for transcription and summarization.
 
 ```bash
 curl -X POST http://localhost:3000/api/tasks \
+  -H "X-Session-Id: my-session-id" \
   -H "X-API-Key: YOUR_API_KEY" \
   -F "file=@recording.wav"
 ```
@@ -125,7 +139,7 @@ curl -X POST http://localhost:3000/api/tasks \
 List all tasks, ordered by creation date (newest first).
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
+curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
 ```
 
 **Success** -- `200 OK`:
@@ -164,7 +178,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
 Get a single task by ID, including transcript and summary.
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
 **Success** — `200 OK`:
@@ -214,7 +228,7 @@ curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks/a1b2c3d4-e5f6-
 Server-Sent Events stream for real-time task progress.
 
 ```bash
-curl -N http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/events
+curl -N "http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/events?sessionId=my-session-id"
 ```
 
 Events emitted:
@@ -268,7 +282,8 @@ curl http://localhost:3000/api/health
 
 ## Security
 
-- **API Key Authentication** -- All endpoints (except health check and SSE) require `X-API-Key` header. Disabled when `API_KEY` is unset (local development).
+- **Session Isolation** -- Each browser gets a unique session ID. Tasks are scoped per session so users only see their own tasks.
+- **API Key Authentication** -- All endpoints (except health check) require `X-API-Key` header. Disabled when `API_KEY` is unset (local development).
 - **Helmet** -- Security headers via `@fastify/helmet` (X-Content-Type-Options, X-Frame-Options, etc.)
 - **Rate Limiting** -- 100 requests/min per IP via `@fastify/rate-limit`
 - **File Validation** -- Mimetype allowlist + magic byte verification for WAV/MP3
