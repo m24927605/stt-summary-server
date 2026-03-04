@@ -29,6 +29,9 @@ vi.mock('../../services/storage', () => ({
 
 import { taskRoutes } from '../../routes/tasks';
 
+const SESSION_ID = 'test-session-id';
+const sessionHeader = { 'x-session-id': SESSION_ID };
+
 describe('task routes', () => {
   let app: FastifyInstance;
 
@@ -63,20 +66,43 @@ describe('task routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/tasks',
-      headers: { 'content-type': `multipart/form-data; boundary=----boundary` },
+      headers: { 'content-type': `multipart/form-data; boundary=----boundary`, ...sessionHeader },
       payload: body,
     });
 
     expect(response.statusCode).toBe(201);
     expect(response.json()).toHaveProperty('id');
     expect(response.json()).toHaveProperty('status', 'pending');
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ sessionId: SESSION_ID }) }),
+    );
+  });
+
+  it('POST /api/tasks without X-Session-Id returns 400', async () => {
+    const wavBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00]);
+    const body =
+      `------boundary\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="test.wav"\r\n` +
+      `Content-Type: audio/wav\r\n\r\n` +
+      wavBuffer.toString('binary') +
+      `\r\n------boundary--\r\n`;
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      headers: { 'content-type': `multipart/form-data; boundary=----boundary` },
+      payload: body,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toContain('Missing X-Session-Id');
   });
 
   it('POST /api/tasks with no file returns 400', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/tasks',
-      headers: { 'content-type': 'multipart/form-data; boundary=----boundary' },
+      headers: { 'content-type': 'multipart/form-data; boundary=----boundary', ...sessionHeader },
       payload: '------boundary--\r\n',
     });
 
@@ -95,7 +121,7 @@ describe('task routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/tasks',
-      headers: { 'content-type': `multipart/form-data; boundary=----boundary` },
+      headers: { 'content-type': `multipart/form-data; boundary=----boundary`, ...sessionHeader },
       payload: body,
     });
 
@@ -117,7 +143,7 @@ describe('task routes', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/tasks',
-      headers: { 'content-type': `multipart/form-data; boundary=----boundary` },
+      headers: { 'content-type': `multipart/form-data; boundary=----boundary`, ...sessionHeader },
       payload: body,
     });
 
@@ -137,23 +163,38 @@ describe('task routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/tasks',
+      headers: sessionHeader,
     });
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body).toHaveLength(2);
     expect(body[0]).toHaveProperty('id', 'task-1');
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: SESSION_ID } }),
+    );
+  });
+
+  it('GET /api/tasks without X-Session-Id returns 400', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toContain('Missing X-Session-Id');
   });
 
   // --- GET /api/tasks/:id ---
 
-  it('GET /api/tasks/:id returns 200 for existing task', async () => {
-    const task = makeTask({ id: 'task-1' });
+  it('GET /api/tasks/:id returns 200 for matching session task', async () => {
+    const task = makeTask({ id: 'task-1', sessionId: SESSION_ID });
     mockFindUnique.mockResolvedValue(task);
 
     const response = await app.inject({
       method: 'GET',
       url: '/api/tasks/task-1',
+      headers: sessionHeader,
     });
 
     expect(response.statusCode).toBe(200);
@@ -166,6 +207,21 @@ describe('task routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/tasks/non-existent',
+      headers: sessionHeader,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toHaveProperty('error', 'Task not found');
+  });
+
+  it('GET /api/tasks/:id returns 404 for task belonging to different session', async () => {
+    const task = makeTask({ id: 'task-1', sessionId: 'other-session' });
+    mockFindUnique.mockResolvedValue(task);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/task-1',
+      headers: sessionHeader,
     });
 
     expect(response.statusCode).toBe(404);

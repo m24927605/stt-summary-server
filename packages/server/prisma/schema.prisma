@@ -11,6 +11,7 @@ model Task {
   id               String    @id @default(uuid()) @db.Uuid
   status           String    @default("pending") @db.VarChar(20)
   step             String?   @db.VarChar(20)
+  sessionId        String    @map("session_id") @db.VarChar(36)
   originalFilename String    @map("original_filename") @db.VarChar(255)
   filePath         String    @map("file_path") @db.VarChar(500)
   transcript       String?   @db.Text

@@ -32,11 +32,17 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
 
     const filePath = await saveFileStream(Readable.from(buffer), data.filename);
 
+    const sessionId = (request.headers['x-session-id'] as string) || '';
+    if (!sessionId) {
+      return reply.status(400).send({ error: 'Missing X-Session-Id header' });
+    }
+
     const db = getDb();
     const task = await db.task.create({
       data: {
         originalFilename: data.filename,
         filePath,
+        sessionId,
       },
     });
 
@@ -50,10 +56,16 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
-  // GET /api/tasks — List all tasks
-  app.get('/api/tasks', async (_request, reply) => {
+  // GET /api/tasks — List tasks for current session
+  app.get('/api/tasks', async (request, reply) => {
+    const sessionId = (request.headers['x-session-id'] as string) || '';
+    if (!sessionId) {
+      return reply.status(400).send({ error: 'Missing X-Session-Id header' });
+    }
+
     const db = getDb();
     const tasks = await db.task.findMany({
+      where: { sessionId },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -73,14 +85,19 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     );
   });
 
-  // GET /api/tasks/:id — Get single task
+  // GET /api/tasks/:id — Get single task (scoped to session)
   app.get<{ Params: { id: string } }>('/api/tasks/:id', async (request, reply) => {
+    const sessionId = (request.headers['x-session-id'] as string) || '';
+    if (!sessionId) {
+      return reply.status(400).send({ error: 'Missing X-Session-Id header' });
+    }
+
     const db = getDb();
     const task = await db.task.findUnique({
       where: { id: request.params.id },
     });
 
-    if (!task) {
+    if (!task || task.sessionId !== sessionId) {
       return reply.status(404).send({ error: 'Task not found' });
     }
 

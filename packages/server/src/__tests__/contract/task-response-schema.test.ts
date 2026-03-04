@@ -29,6 +29,8 @@ vi.mock('../../services/storage', () => ({
 import { taskRoutes } from '../../routes/tasks';
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/;
+const SESSION_ID = 'test-session-id';
+const sessionHeader = { 'x-session-id': SESSION_ID };
 
 describe('task response contract', () => {
   let app: FastifyInstance;
@@ -60,7 +62,7 @@ describe('task response contract', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/tasks',
-      headers: { 'content-type': 'multipart/form-data; boundary=----boundary' },
+      headers: { 'content-type': 'multipart/form-data; boundary=----boundary', ...sessionHeader },
       payload: body,
     });
 
@@ -78,7 +80,7 @@ describe('task response contract', () => {
   it('GET /api/tasks response items match TaskResponse shape', async () => {
     mockFindMany.mockResolvedValue([makeTask()]);
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks' });
+    const response = await app.inject({ method: 'GET', url: '/api/tasks', headers: sessionHeader });
     const items = response.json();
     const item = items[0];
 
@@ -97,7 +99,7 @@ describe('task response contract', () => {
   it('GET /api/tasks/:id response matches TaskResponse shape', async () => {
     mockFindUnique.mockResolvedValue(makeTask());
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1' });
+    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1', headers: sessionHeader });
     const json = response.json();
 
     expect(json).toHaveProperty('id');
@@ -115,7 +117,7 @@ describe('task response contract', () => {
   it('date fields are ISO 8601 strings', async () => {
     mockFindUnique.mockResolvedValue(makeTask({ completedAt: new Date('2025-06-01T00:00:00Z') }));
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1' });
+    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1', headers: sessionHeader });
     const json = response.json();
 
     expect(json.createdAt).toMatch(ISO_DATE_REGEX);
@@ -126,7 +128,7 @@ describe('task response contract', () => {
   it('nullable fields are null not undefined', async () => {
     mockFindUnique.mockResolvedValue(makeTask());
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1' });
+    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1', headers: sessionHeader });
     const json = response.json();
 
     expect(json.step).toBeNull();

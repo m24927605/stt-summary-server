@@ -27,6 +27,7 @@ export async function buildApp() {
 
   await app.register(cors, {
     origin: config.corsOrigin,
+    allowedHeaders: ['Content-Type', 'X-API-Key', 'X-Session-Id'],
   });
 
   await app.register(multipart, {

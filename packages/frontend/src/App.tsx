@@ -45,7 +45,10 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>STT Summary Server</h1>
+        <div className="app-title">
+          <img src="/logo.svg" alt="STT Summary Server" className="app-logo" />
+          <h1>STT Summary Server</h1>
+        </div>
         <p>Upload audio files for transcription and AI-powered summarization</p>
       </header>
 
