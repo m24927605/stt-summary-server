@@ -40,3 +40,26 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VITE_API_KEY=${{ matrix.package == 'frontend' && secrets.VITE_API_KEY || '' }}
+
+  deploy-ecs:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Force redeploy ECS services
+        run: |
+          for service in stt-summary-server stt-summary-worker stt-summary-frontend; do
+            aws ecs update-service \
+              --cluster stt-summary-cluster \
+              --service "$service" \
+              --force-new-deployment \
+              --query 'service.serviceName' \
+              --output text
+            echo "Redeployed: $service"
+          done
