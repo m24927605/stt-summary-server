@@ -83,6 +83,50 @@ describe('event routes', () => {
     expect(body).toContain('STT failed: timeout');
   });
 
+  it('returns 404 when sessionId query param is missing', async () => {
+    const task = makeTask({ status: 'completed', transcript: 'hi', summary: 'greeting' });
+    mockFindUnique.mockResolvedValue(task);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${task.id}/events`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toHaveProperty('error', 'Task not found');
+  });
+
+  it('returns 404 when sessionId does not match task', async () => {
+    const task = makeTask({ sessionId: 'owner-session' });
+    mockFindUnique.mockResolvedValue(task);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${task.id}/events?sessionId=wrong-session`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toHaveProperty('error', 'Task not found');
+  });
+
+  it('sends events when sessionId matches', async () => {
+    const task = makeTask({
+      status: 'completed',
+      sessionId: 'my-session',
+      transcript: 'hello',
+      summary: 'a greeting',
+    });
+    mockFindUnique.mockResolvedValue(task);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${task.id}/events?sessionId=my-session`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('event: completed');
+  });
+
   describe('SSE polling', () => {
     beforeEach(() => {
       vi.useFakeTimers();
