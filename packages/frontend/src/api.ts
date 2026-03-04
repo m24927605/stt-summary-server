@@ -1,7 +1,7 @@
 const API_BASE = '/api';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
 
-function getSessionId(): string {
+export function getSessionId(): string {
   let id = localStorage.getItem('sessionId');
   if (!id) {
     id = crypto.randomUUID();
