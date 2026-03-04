@@ -283,7 +283,7 @@ curl http://localhost:3000/api/health
 ## Security
 
 - **Session Isolation** -- Each browser gets a unique session ID. Tasks are scoped per session so users only see their own tasks.
-- **API Key Authentication** -- All endpoints (except health check) require `X-API-Key` header. Disabled when `API_KEY` is unset (local development).
+- **API Key Authentication** -- All endpoints (except health check and SSE) require `X-API-Key` header. SSE uses query-param session validation instead, since `EventSource` cannot set custom headers. Disabled when `API_KEY` is unset (local development).
 - **Helmet** -- Security headers via `@fastify/helmet` (X-Content-Type-Options, X-Frame-Options, etc.)
 - **Rate Limiting** -- 100 requests/min per IP via `@fastify/rate-limit`
 - **File Validation** -- Mimetype allowlist + magic byte verification for WAV/MP3
