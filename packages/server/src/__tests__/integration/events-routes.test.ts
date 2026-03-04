@@ -97,7 +97,7 @@ describe('event routes', () => {
   });
 
   it('returns 404 when sessionId does not match task', async () => {
-    const task = makeTask({ sessionId: 'owner-session' });
+    const task = makeTask({ status: 'completed', sessionId: 'owner-session', transcript: 'x', summary: 'y' });
     mockFindUnique.mockResolvedValue(task);
 
     const response = await app.inject({
