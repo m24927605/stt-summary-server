@@ -21,6 +21,7 @@ export function UploadForm({ onTaskCreated }: Props) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 

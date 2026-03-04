@@ -22,7 +22,7 @@ vi.mock('amqplib', () => ({
 }));
 
 vi.mock('../../config', () => ({
-  config: { rabbitmqUrl: 'amqp://localhost:5672' },
+  config: { rabbitmqUrl: 'amqp://localhost:5672', apiKey: '' },
 }));
 
 describe('rabbitmq plugin', () => {

@@ -13,7 +13,7 @@ vi.mock('../../plugins/db', () => ({
 }));
 
 vi.mock('../../config', () => ({
-  config: { corsOrigin: '*' },
+  config: { corsOrigin: '*', apiKey: '' },
 }));
 
 import { eventRoutes } from '../../routes/events';

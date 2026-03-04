@@ -36,7 +36,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
         aws_secretsmanager_secret.database_url.arn,
         aws_secretsmanager_secret.rabbitmq_url.arn,
         aws_secretsmanager_secret.openai_api_key.arn,
-        aws_secretsmanager_secret.s3_credentials.arn,
+        aws_secretsmanager_secret.api_key.arn,
         aws_secretsmanager_secret.ghcr_credentials.arn,
       ]
     }]

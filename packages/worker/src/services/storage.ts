@@ -4,10 +4,12 @@ import { config } from '../config';
 const s3Client = new S3Client({
   region: config.s3Region,
   ...(config.s3Endpoint && { endpoint: config.s3Endpoint, forcePathStyle: true }),
-  credentials: {
-    accessKeyId: config.s3AccessKeyId,
-    secretAccessKey: config.s3SecretAccessKey,
-  },
+  ...(config.s3AccessKeyId && config.s3SecretAccessKey && {
+    credentials: {
+      accessKeyId: config.s3AccessKeyId,
+      secretAccessKey: config.s3SecretAccessKey,
+    },
+  }),
 });
 
 export async function downloadFile(key: string): Promise<Buffer> {

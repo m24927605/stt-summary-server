@@ -58,8 +58,7 @@ resource "aws_ecs_task_definition" "server" {
     secrets = [
       { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
       { name = "RABBITMQ_URL", valueFrom = aws_secretsmanager_secret.rabbitmq_url.arn },
-      { name = "S3_ACCESS_KEY_ID", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:access_key_id::" },
-      { name = "S3_SECRET_ACCESS_KEY", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:secret_access_key::" },
+      { name = "API_KEY", valueFrom = aws_secretsmanager_secret.api_key.arn },
     ]
 
     logConfiguration = {
@@ -110,8 +109,6 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
       { name = "RABBITMQ_URL", valueFrom = aws_secretsmanager_secret.rabbitmq_url.arn },
       { name = "OPENAI_API_KEY", valueFrom = aws_secretsmanager_secret.openai_api_key.arn },
-      { name = "S3_ACCESS_KEY_ID", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:access_key_id::" },
-      { name = "S3_SECRET_ACCESS_KEY", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:secret_access_key::" },
     ]
 
     logConfiguration = {

@@ -38,3 +38,5 @@ jobs:
             ghcr.io/${{ github.repository }}/${{ matrix.package }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VITE_API_KEY=${{ matrix.package == 'frontend' && secrets.VITE_API_KEY || '' }}

@@ -2,6 +2,8 @@
 
 A full-stack speech-to-text summarization service that accepts audio files, transcribes them via OpenAI Whisper, generates summaries via GPT, and streams real-time progress to a React frontend using Server-Sent Events (SSE).
 
+**Live Demo:** [https://voicebrief.xyz](https://voicebrief.xyz)
+
 ## Architecture
 
 The system follows a producer-consumer architecture with five main components:
@@ -60,6 +62,24 @@ Once running, access:
 
 ## API Documentation
 
+### Authentication
+
+All API endpoints (except `/api/health` and SSE `/api/tasks/:id/events`) require an API key via the `X-API-Key` header.
+
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
+```
+
+When `API_KEY` is not set (local development), authentication is disabled.
+
+**Error** -- `401 Unauthorized` (missing or invalid key):
+
+```json
+{
+  "error": "Missing or invalid API key"
+}
+```
+
 ### `POST /api/tasks`
 
 Upload an audio file for transcription and summarization.
@@ -69,6 +89,7 @@ Upload an audio file for transcription and summarization.
 
 ```bash
 curl -X POST http://localhost:3000/api/tasks \
+  -H "X-API-Key: YOUR_API_KEY" \
   -F "file=@recording.wav"
 ```
 
@@ -104,10 +125,10 @@ curl -X POST http://localhost:3000/api/tasks \
 List all tasks, ordered by creation date (newest first).
 
 ```bash
-curl http://localhost:3000/api/tasks
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
 ```
 
-**Success** — `200 OK`:
+**Success** -- `200 OK`:
 
 ```json
 [
@@ -143,7 +164,7 @@ curl http://localhost:3000/api/tasks
 Get a single task by ID, including transcript and summary.
 
 ```bash
-curl http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
 **Success** — `200 OK`:
@@ -245,6 +266,15 @@ curl http://localhost:3000/api/health
 }
 ```
 
+## Security
+
+- **API Key Authentication** -- All endpoints (except health check and SSE) require `X-API-Key` header. Disabled when `API_KEY` is unset (local development).
+- **Helmet** -- Security headers via `@fastify/helmet` (X-Content-Type-Options, X-Frame-Options, etc.)
+- **Rate Limiting** -- 100 requests/min per IP via `@fastify/rate-limit`
+- **File Validation** -- Mimetype allowlist + magic byte verification for WAV/MP3
+- **Non-root Containers** -- Server and worker run as `node` user inside Docker
+- **Timing-safe Comparison** -- API key validation uses `crypto.timingSafeEqual`
+
 ## Environment Variables
 
 All variables are configured in `.env` (copy from `.env.example`):
@@ -252,6 +282,7 @@ All variables are configured in `.env` (copy from `.env.example`):
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OPENAI_API_KEY` | OpenAI API key (required) | -- |
+| `API_KEY` | API key for endpoint authentication (optional, disabled if unset) | -- |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@postgres:5432/stt_summary` |
 | `POSTGRES_USER` | PostgreSQL username | `postgres` |
 | `POSTGRES_PASSWORD` | PostgreSQL password | `postgres` |
@@ -313,17 +344,22 @@ stt-summary-server/
 │   │   │   ├── schema.prisma     # Database schema
 │   │   │   └── migrations/       # SQL migrations
 │   │   ├── src/
-│   │   │   ├── app.ts            # Fastify app builder
+│   │   │   ├── app.ts            # Fastify app builder (helmet, rate-limit, CORS)
 │   │   │   ├── server.ts         # Entry point
 │   │   │   ├── config.ts         # Environment config
+│   │   │   ├── middleware/
+│   │   │   │   └── auth.ts       # API Key authentication middleware
 │   │   │   ├── plugins/
 │   │   │   │   ├── db.ts         # Prisma database plugin
 │   │   │   │   └── rabbitmq.ts   # RabbitMQ producer plugin
 │   │   │   ├── routes/
 │   │   │   │   ├── tasks.ts      # Task CRUD endpoints
 │   │   │   │   └── events.ts     # SSE streaming endpoint
-│   │   │   └── services/
-│   │   │       └── storage.ts    # File storage service
+│   │   │   ├── services/
+│   │   │   │   └── storage.ts    # S3 file storage service
+│   │   │   └── utils/
+│   │   │       ├── audio-validation.ts  # WAV/MP3 magic byte validation
+│   │   │       └── step-message.ts      # Human-readable step messages
 │   │   ├── Dockerfile
 │   │   └── package.json
 │   ├── worker/                   # Background task processor
@@ -331,9 +367,11 @@ stt-summary-server/
 │   │   │   ├── index.ts          # Entry point
 │   │   │   ├── config.ts         # Environment config
 │   │   │   ├── consumer.ts       # RabbitMQ consumer + task orchestration
-│   │   │   └── processors/
-│   │   │       ├── stt.ts        # OpenAI Whisper integration
-│   │   │       └── llm.ts        # OpenAI GPT integration
+│   │   │   ├── processors/
+│   │   │   │   ├── stt.ts        # OpenAI Whisper integration
+│   │   │   │   └── llm.ts        # OpenAI GPT integration
+│   │   │   └── services/
+│   │   │       └── storage.ts    # S3 file download service
 │   │   ├── Dockerfile
 │   │   └── package.json
 │   └── frontend/                 # React SPA

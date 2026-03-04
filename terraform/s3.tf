@@ -44,30 +44,3 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   }
 }
 
-# IAM user for S3 access (used by ECS tasks via env vars)
-resource "aws_iam_user" "s3_user" {
-  name = "${var.project_name}-s3-user"
-
-  tags = { Name = "${var.project_name}-s3-user" }
-}
-
-resource "aws_iam_user_policy" "s3_user" {
-  name = "s3-upload-access"
-  user = aws_iam_user.s3_user.name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "s3:PutObject",
-        "s3:GetObject",
-      ]
-      Resource = "${aws_s3_bucket.uploads.arn}/*"
-    }]
-  })
-}
-
-resource "aws_iam_access_key" "s3_user" {
-  user = aws_iam_user.s3_user.name
-}

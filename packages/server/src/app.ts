@@ -1,4 +1,6 @@
 import Fastify from 'fastify';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import { MAX_FILE_SIZE } from 'shared/constants';
@@ -7,10 +9,20 @@ import { eventRoutes } from './routes/events';
 import { connectQueue, disconnectQueue } from './plugins/rabbitmq';
 import { getDb, disconnectDb } from './plugins/db';
 import { config } from './config';
+import { registerAuth } from './middleware/auth';
 
 export async function buildApp() {
   const app = Fastify({
     logger: true,
+  });
+
+  await app.register(helmet, {
+    contentSecurityPolicy: false, // SPA handles its own CSP
+  });
+
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
   });
 
   await app.register(cors, {
@@ -22,6 +34,8 @@ export async function buildApp() {
       fileSize: MAX_FILE_SIZE,
     },
   });
+
+  registerAuth(app);
 
   // Connect to RabbitMQ
   await connectQueue();
@@ -37,10 +51,8 @@ export async function buildApp() {
         timestamp: new Date().toISOString(),
       };
     } catch (err) {
-      return reply.status(503).send({
-        status: 'degraded',
-        error: err instanceof Error ? err.message : 'Database connection failed',
-      });
+      app.log.error(err, 'Health check failed');
+      return reply.status(503).send({ status: 'error' });
     }
   });
 

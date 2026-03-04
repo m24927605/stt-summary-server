@@ -24,6 +24,7 @@ vi.mock('../../plugins/rabbitmq', () => ({
 
 vi.mock('../../services/storage', () => ({
   saveFile: vi.fn(() => Promise.resolve('./uploads/mock-uuid.wav')),
+  saveFileStream: vi.fn(() => Promise.resolve('./uploads/mock-uuid.wav')),
 }));
 
 import { taskRoutes } from '../../routes/tasks';

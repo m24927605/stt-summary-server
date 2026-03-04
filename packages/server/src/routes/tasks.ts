@@ -1,7 +1,8 @@
+import { Readable } from 'stream';
 import { FastifyInstance } from 'fastify';
 import { getDb } from '../plugins/db';
 import { publishTask } from '../plugins/rabbitmq';
-import { saveFile } from '../services/storage';
+import { saveFileStream } from '../services/storage';
 import { isValidAudioMagicBytes } from '../utils/audio-validation';
 import { ALLOWED_MIMETYPES } from 'shared/constants';
 
@@ -29,7 +30,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const filePath = await saveFile(buffer, data.filename);
+    const filePath = await saveFileStream(Readable.from(buffer), data.filename);
 
     const db = getDb();
     const task = await db.task.create({
