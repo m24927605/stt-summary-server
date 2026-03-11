@@ -12,3 +12,11 @@ export function isRetryableError(err: unknown): boolean {
   }
   return true;
 }
+
+export function shouldRetryTaskFailure(err: unknown): boolean {
+  if (err instanceof Error && err.message.startsWith('Summary verification failed:')) {
+    return false;
+  }
+
+  return isRetryableError(err);
+}

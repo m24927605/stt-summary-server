@@ -222,6 +222,36 @@ describe('startConsumer', () => {
       );
     });
 
+    it('does not re-queue summary verification failures', async () => {
+      mockUpdate.mockRejectedValueOnce(new Error('Summary verification failed: too similar'));
+
+      const msg = {
+        content: Buffer.from(JSON.stringify({ taskId: 'task-1' })),
+        properties: { headers: { 'x-retry-count': 0 } },
+      };
+
+      await messageHandler(msg);
+
+      expect(mockAck).toHaveBeenCalledWith(msg);
+      expect(mockSendToQueue).not.toHaveBeenCalled();
+    });
+
+    it('does not re-queue non-retryable 400 errors', async () => {
+      const err = new Error('Audio too short');
+      (err as unknown as Record<string, unknown>).status = 400;
+      mockUpdate.mockRejectedValueOnce(err);
+
+      const msg = {
+        content: Buffer.from(JSON.stringify({ taskId: 'task-1' })),
+        properties: { headers: { 'x-retry-count': 0 } },
+      };
+
+      await messageHandler(msg);
+
+      expect(mockAck).toHaveBeenCalledWith(msg);
+      expect(mockSendToQueue).not.toHaveBeenCalled();
+    });
+
     it('sends to DLQ and updates DB on max retries', async () => {
       mockUpdate
         .mockRejectedValueOnce(new Error('persistent failure'))  // processTask fails

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getRetryDelayMs, isRetryableError } from '../../utils/retry';
+import { getRetryDelayMs, isRetryableError, shouldRetryTaskFailure } from '../../utils/retry';
 
 describe('getRetryDelayMs', () => {
   it('returns 1000ms for attempt 0', () => {
@@ -58,5 +58,23 @@ describe('isRetryableError', () => {
 
   it('returns true for unknown errors (default retry)', () => {
     expect(isRetryableError(new Error('something'))).toBe(true);
+  });
+});
+
+describe('shouldRetryTaskFailure', () => {
+  it('returns false for summary verification failures', () => {
+    expect(shouldRetryTaskFailure(new Error('Summary verification failed: too similar'))).toBe(false);
+  });
+
+  it('returns false for 400 provider errors', () => {
+    const err = new Error('Bad Request');
+    (err as unknown as Record<string, unknown>).status = 400;
+    expect(shouldRetryTaskFailure(err)).toBe(false);
+  });
+
+  it('returns true for retryable failures', () => {
+    const err = new Error('Rate limited');
+    (err as unknown as Record<string, unknown>).status = 429;
+    expect(shouldRetryTaskFailure(err)).toBe(true);
   });
 });

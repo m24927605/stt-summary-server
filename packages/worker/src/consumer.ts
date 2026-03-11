@@ -6,6 +6,7 @@ import { transcribeAudio } from './processors/stt';
 import { executeSecureSummaryPipeline } from './pipelines/secure-summary';
 import { QUEUE_NAME, DEAD_LETTER_QUEUE, MAX_RETRIES } from 'shared/constants';
 import { QueueMessage } from 'shared/types';
+import { shouldRetryTaskFailure } from './utils/retry';
 
 const prisma = new PrismaClient();
 
@@ -44,7 +45,7 @@ export async function startConsumer(): Promise<void> {
         } catch (err) {
           logger.error({ taskId, err }, 'Task failed');
 
-          if (retryCount < MAX_RETRIES - 1) {
+          if (shouldRetryTaskFailure(err) && retryCount < MAX_RETRIES - 1) {
             channel.ack(msg);
             channel.sendToQueue(
               QUEUE_NAME,
@@ -57,20 +58,22 @@ export async function startConsumer(): Promise<void> {
             logger.info({ taskId, attempt: retryCount + 2 }, 'Task re-queued');
           } else {
             channel.ack(msg);
-            channel.sendToQueue(
-              DEAD_LETTER_QUEUE,
-              Buffer.from(JSON.stringify(content)),
-              { persistent: true }
-            );
+            if (shouldRetryTaskFailure(err)) {
+              channel.sendToQueue(
+                DEAD_LETTER_QUEUE,
+                Buffer.from(JSON.stringify(content)),
+                { persistent: true }
+              );
 
-            await prisma.task.update({
-              where: { id: taskId },
-              data: {
-                status: 'failed',
-                step: null,
-                error: `Max retries exceeded. Last error: ${err instanceof Error ? err.message : String(err)}`,
-              },
-            });
+              await prisma.task.update({
+                where: { id: taskId },
+                data: {
+                  status: 'failed',
+                  step: null,
+                  error: `Max retries exceeded. Last error: ${err instanceof Error ? err.message : String(err)}`,
+                },
+              });
+            }
           }
         }
       });
