@@ -16,13 +16,13 @@ describe('getRetryDelayMs', () => {
 describe('isRetryableError', () => {
   it('returns true for 500 errors', () => {
     const err = new Error('Internal Server Error');
-    (err as Record<string, unknown>).status = 500;
+    (err as unknown as Record<string, unknown>).status = 500;
     expect(isRetryableError(err)).toBe(true);
   });
 
   it('returns true for 502 errors', () => {
     const err = new Error('Bad Gateway');
-    (err as Record<string, unknown>).status = 502;
+    (err as unknown as Record<string, unknown>).status = 502;
     expect(isRetryableError(err)).toBe(true);
   });
 
@@ -34,25 +34,25 @@ describe('isRetryableError', () => {
 
   it('returns false for 400 errors', () => {
     const err = new Error('Bad Request');
-    (err as Record<string, unknown>).status = 400;
+    (err as unknown as Record<string, unknown>).status = 400;
     expect(isRetryableError(err)).toBe(false);
   });
 
   it('returns false for 401 errors', () => {
     const err = new Error('Unauthorized');
-    (err as Record<string, unknown>).status = 401;
+    (err as unknown as Record<string, unknown>).status = 401;
     expect(isRetryableError(err)).toBe(false);
   });
 
   it('returns false for 403 errors', () => {
     const err = new Error('Forbidden');
-    (err as Record<string, unknown>).status = 403;
+    (err as unknown as Record<string, unknown>).status = 403;
     expect(isRetryableError(err)).toBe(false);
   });
 
   it('returns true for 429 rate limit errors', () => {
     const err = new Error('Rate limit exceeded');
-    (err as Record<string, unknown>).status = 429;
+    (err as unknown as Record<string, unknown>).status = 429;
     expect(isRetryableError(err)).toBe(true);
   });
 

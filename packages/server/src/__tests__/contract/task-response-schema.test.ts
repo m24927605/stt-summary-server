@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
+import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import { makeTask } from '../helpers/fixtures';
+import { SESSION_ID, CSRF_TOKEN, makeDbSession, sessionCookie } from '../helpers/session';
 
 const mockCreate = vi.fn();
 const mockFindMany = vi.fn();
 const mockFindUnique = vi.fn();
+const mockSessionCreate = vi.fn();
+const mockSessionFindUnique = vi.fn();
+const mockSessionUpdate = vi.fn();
 
 vi.mock('../../plugins/db', () => ({
   getDb: () => ({
@@ -13,6 +18,11 @@ vi.mock('../../plugins/db', () => ({
       create: mockCreate,
       findMany: mockFindMany,
       findUnique: mockFindUnique,
+    },
+    session: {
+      create: mockSessionCreate,
+      findUnique: mockSessionFindUnique,
+      update: mockSessionUpdate,
     },
   }),
 }));
@@ -27,18 +37,25 @@ vi.mock('../../services/storage', () => ({
 }));
 
 import { taskRoutes } from '../../routes/tasks';
+import { sessionPlugin } from '../../plugins/session';
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/;
-const SESSION_ID = 'test-session-id';
-const sessionHeader = { 'x-session-id': SESSION_ID };
 
 describe('task response contract', () => {
   let app: FastifyInstance;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockSessionFindUnique.mockResolvedValue(makeDbSession());
+    mockSessionUpdate.mockResolvedValue(makeDbSession());
+    mockSessionCreate.mockImplementation((args: { data: Record<string, unknown> }) =>
+      Promise.resolve({ id: SESSION_ID, ...args.data })
+    );
+
     app = Fastify();
+    await app.register(cookie);
     await app.register(multipart);
+    await app.register(sessionPlugin);
     await app.register(taskRoutes);
     await app.ready();
   });
@@ -48,10 +65,10 @@ describe('task response contract', () => {
   });
 
   it('POST /api/tasks response matches TaskCreateResponse shape', async () => {
-    const task = makeTask();
+    const task = makeTask({ sessionId: SESSION_ID });
     mockCreate.mockResolvedValue(task);
 
-    const wavBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00]);
+    const wavBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
     const body =
       `------boundary\r\n` +
       `Content-Disposition: form-data; name="file"; filename="test.wav"\r\n` +
@@ -62,7 +79,12 @@ describe('task response contract', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/tasks',
-      headers: { 'content-type': 'multipart/form-data; boundary=----boundary', ...sessionHeader },
+      headers: {
+        'content-type': 'multipart/form-data; boundary=----boundary',
+        cookie: sessionCookie(),
+        'x-csrf-token': CSRF_TOKEN,
+        origin: 'http://localhost:8080',
+      },
       payload: body,
     });
 
@@ -78,9 +100,13 @@ describe('task response contract', () => {
   });
 
   it('GET /api/tasks response items match TaskResponse shape', async () => {
-    mockFindMany.mockResolvedValue([makeTask()]);
+    mockFindMany.mockResolvedValue([makeTask({ sessionId: SESSION_ID })]);
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks', headers: sessionHeader });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+      headers: { cookie: sessionCookie() },
+    });
     const items = response.json();
     const item = items[0];
 
@@ -97,9 +123,13 @@ describe('task response contract', () => {
   });
 
   it('GET /api/tasks/:id response matches TaskResponse shape', async () => {
-    mockFindUnique.mockResolvedValue(makeTask());
+    mockFindUnique.mockResolvedValue(makeTask({ sessionId: SESSION_ID }));
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1', headers: sessionHeader });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/test-task-id-1',
+      headers: { cookie: sessionCookie() },
+    });
     const json = response.json();
 
     expect(json).toHaveProperty('id');
@@ -115,9 +145,13 @@ describe('task response contract', () => {
   });
 
   it('date fields are ISO 8601 strings', async () => {
-    mockFindUnique.mockResolvedValue(makeTask({ completedAt: new Date('2025-06-01T00:00:00Z') }));
+    mockFindUnique.mockResolvedValue(makeTask({ sessionId: SESSION_ID, completedAt: new Date('2025-06-01T00:00:00Z') }));
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1', headers: sessionHeader });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/test-task-id-1',
+      headers: { cookie: sessionCookie() },
+    });
     const json = response.json();
 
     expect(json.createdAt).toMatch(ISO_DATE_REGEX);
@@ -126,9 +160,13 @@ describe('task response contract', () => {
   });
 
   it('nullable fields are null not undefined', async () => {
-    mockFindUnique.mockResolvedValue(makeTask());
+    mockFindUnique.mockResolvedValue(makeTask({ sessionId: SESSION_ID }));
 
-    const response = await app.inject({ method: 'GET', url: '/api/tasks/test-task-id-1', headers: sessionHeader });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/test-task-id-1',
+      headers: { cookie: sessionCookie() },
+    });
     const json = response.json();
 
     expect(json.step).toBeNull();
@@ -136,5 +174,53 @@ describe('task response contract', () => {
     expect(json.summary).toBeNull();
     expect(json.error).toBeNull();
     expect(json.completedAt).toBeNull();
+  });
+
+  it('error.code supports verification failure', async () => {
+    mockFindMany.mockResolvedValue([
+      makeTask({ sessionId: SESSION_ID, status: 'failed', error: 'summary_verification_failed: Number "999" not found' }),
+    ]);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+      headers: { cookie: sessionCookie() },
+    });
+    const items = response.json();
+    expect(items[0].error).toEqual({
+      code: 'summary_verification_failed',
+      message: expect.any(String),
+    });
+  });
+
+  it('error.code supports processing_timeout', async () => {
+    mockFindMany.mockResolvedValue([
+      makeTask({ sessionId: SESSION_ID, status: 'failed', error: 'Max retries exceeded. Last error: timeout' }),
+    ]);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+      headers: { cookie: sessionCookie() },
+    });
+    const items = response.json();
+    expect(items[0].error.code).toBe('processing_timeout');
+  });
+
+  it('successful responses do not leak verifier metadata', async () => {
+    mockFindMany.mockResolvedValue([
+      makeTask({ sessionId: SESSION_ID, status: 'completed', summary: 'A clean summary.' }),
+    ]);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+      headers: { cookie: sessionCookie() },
+    });
+    const items = response.json();
+    const item = items[0];
+    expect(item).not.toHaveProperty('verificationResult');
+    expect(item).not.toHaveProperty('guardedOutput');
+    expect(item).not.toHaveProperty('rawSummary');
   });
 });

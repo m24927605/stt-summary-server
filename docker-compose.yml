@@ -120,7 +120,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./packages/frontend/nginx.conf.template:/etc/nginx/templates/default.conf.template
+      - ./packages/frontend/nginx.conf:/etc/nginx/templates/default.conf.template
     environment:
       - API_HOST=server
       - API_PORT=3000

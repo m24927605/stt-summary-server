@@ -39,3 +39,16 @@ model Session {
 
   @@map("sessions")
 }
+
+model RateLimitEntry {
+  id          Int      @id @default(autoincrement())
+  bucket      String   @db.VarChar(64)
+  key         String   @db.VarChar(128)
+  windowStart DateTime @map("window_start") @db.Timestamptz()
+  count       Int      @default(1)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@unique([bucket, key, windowStart], map: "uq_rate_limit_bucket_key_window")
+  @@index([windowStart], map: "idx_rate_limit_window_start")
+  @@map("rate_limit_entries")
+}

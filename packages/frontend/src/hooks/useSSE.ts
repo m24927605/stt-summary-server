@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { getSessionId } from '../api';
 
 interface SSEData {
   status: string;
@@ -7,7 +6,7 @@ interface SSEData {
   message?: string;
   transcript?: string;
   summary?: string;
-  error?: string;
+  error?: { code: string; message: string };
 }
 
 export function useSSE(taskId: string | null) {
@@ -21,7 +20,7 @@ export function useSSE(taskId: string | null) {
       return;
     }
 
-    const es = new EventSource(`/api/tasks/${taskId}/events?sessionId=${encodeURIComponent(getSessionId())}`);
+    const es = new EventSource(`/api/tasks/${taskId}/events`, { withCredentials: true });
     eventSourceRef.current = es;
 
     es.onopen = () => setIsConnected(true);

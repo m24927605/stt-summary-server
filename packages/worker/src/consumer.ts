@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { config } from './config';
 import { logger } from './logger';
 import { transcribeAudio } from './processors/stt';
-import { summarizeText } from './processors/llm';
+import { executeSecureSummaryPipeline } from './pipelines/secure-summary';
 import { QUEUE_NAME, DEAD_LETTER_QUEUE, MAX_RETRIES } from 'shared/constants';
 import { QueueMessage } from 'shared/types';
 
@@ -129,30 +129,6 @@ export async function processTask(taskId: string): Promise<void> {
     data: { step: 'llm' },
   });
 
-  let summary: string;
-  try {
-    summary = await summarizeText(transcript);
-  } catch (err) {
-    await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        status: 'failed',
-        step: null,
-        error: `LLM failed: ${err instanceof Error ? err.message : String(err)}`,
-      },
-    });
-    throw err;
-  }
-
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      summary,
-      status: 'completed',
-      step: null,
-      completedAt: new Date(),
-    },
-  });
-
-  logger.info({ taskId }, 'Task completed');
+  // Use secure summary pipeline: sanitize → generate → guard → verify → persist
+  await executeSecureSummaryPipeline(prisma, taskId, transcript);
 }

@@ -1,6 +1,11 @@
 import Markdown from 'react-markdown';
 import { useSSE } from '../hooks/useSSE';
 
+interface SanitizedError {
+  code: string;
+  message: string;
+}
+
 interface Task {
   id: string;
   status: string;
@@ -8,7 +13,7 @@ interface Task {
   originalFilename: string;
   transcript: string | null;
   summary: string | null;
-  error: string | null;
+  error: SanitizedError | null;
   createdAt: string;
   completedAt: string | null;
 }
@@ -29,7 +34,10 @@ export function TaskDetail({ task }: Props) {
   const displayStatus = isTerminal ? task.status : (sseData?.status || task.status);
   const displayTranscript = sseData?.transcript || task.transcript;
   const displaySummary = sseData?.summary || task.summary;
-  const displayError = isTerminal ? task.error : (sseData?.error || task.error);
+  const rawError = isTerminal ? task.error : (sseData?.error || task.error);
+  const displayError = rawError
+    ? (typeof rawError === 'object' && 'message' in rawError ? rawError.message : String(rawError))
+    : null;
 
   return (
     <div className="task-detail">

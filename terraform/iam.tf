@@ -44,12 +44,13 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
 }
 
 # ──────────────────────────────────────────
-# ECS Task Role
-# Used by application containers at runtime
+# Server Task Role
+# Runtime permissions for the server container
+# Server only needs to upload files to S3
 # ──────────────────────────────────────────
 
-resource "aws_iam_role" "ecs_task" {
-  name = "${var.project_name}-ecs-task"
+resource "aws_iam_role" "ecs_task_server" {
+  name = "${var.project_name}-ecs-task-server"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -60,21 +61,53 @@ resource "aws_iam_role" "ecs_task" {
     }]
   })
 
-  tags = { Name = "${var.project_name}-ecs-task" }
+  tags = { Name = "${var.project_name}-ecs-task-server" }
 }
 
-resource "aws_iam_role_policy" "ecs_task_s3" {
-  name = "s3-access"
-  role = aws_iam_role.ecs_task.id
+resource "aws_iam_role_policy" "ecs_task_server_s3" {
+  name = "s3-put-only"
+  role = aws_iam_role.ecs_task_server.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Action = [
-        "s3:PutObject",
-        "s3:GetObject",
-      ]
+      Effect   = "Allow"
+      Action   = ["s3:PutObject"]
+      Resource = "${aws_s3_bucket.uploads.arn}/*"
+    }]
+  })
+}
+
+# ──────────────────────────────────────────
+# Worker Task Role
+# Runtime permissions for the worker container
+# Worker only needs to download files from S3
+# ──────────────────────────────────────────
+
+resource "aws_iam_role" "ecs_task_worker" {
+  name = "${var.project_name}-ecs-task-worker"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+    }]
+  })
+
+  tags = { Name = "${var.project_name}-ecs-task-worker" }
+}
+
+resource "aws_iam_role_policy" "ecs_task_worker_s3" {
+  name = "s3-get-only"
+  role = aws_iam_role.ecs_task_worker.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject"]
       Resource = "${aws_s3_bucket.uploads.arn}/*"
     }]
   })

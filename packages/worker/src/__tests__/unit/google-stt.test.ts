@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { promises as fs } from 'fs';
+import path from 'path';
+import os from 'os';
 
 const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
@@ -14,7 +17,18 @@ import { GoogleSTTProvider } from '../../providers/google-stt';
 
 describe('GoogleSTTProvider', () => {
   const provider = new GoogleSTTProvider();
-  beforeEach(() => vi.clearAllMocks());
+  let tempFile: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    // Create a temp file with test audio content
+    tempFile = path.join(os.tmpdir(), `google-stt-test-${Date.now()}.wav`);
+    await fs.writeFile(tempFile, Buffer.from('audio'));
+  });
+
+  afterEach(async () => {
+    try { await fs.unlink(tempFile); } catch {}
+  });
 
   it('has name "google"', () => {
     expect(provider.name).toBe('google');
@@ -27,12 +41,15 @@ describe('GoogleSTTProvider', () => {
         results: [{ alternatives: [{ transcript: 'Hello from Google' }] }],
       }),
     });
-    const result = await provider.transcribe(Buffer.from('audio'), 'test.wav');
+    const result = await provider.transcribe(tempFile, 'test.wav');
     expect(result).toBe('Hello from Google');
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('speech.googleapis.com'),
       expect.objectContaining({ method: 'POST' }),
     );
+    // Verify base64 content is in the request body
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(callBody.audio.content).toBe(Buffer.from('audio').toString('base64'));
   });
 
   it('concatenates multiple results', async () => {
@@ -45,7 +62,7 @@ describe('GoogleSTTProvider', () => {
         ],
       }),
     });
-    const result = await provider.transcribe(Buffer.from('audio'), 'test.wav');
+    const result = await provider.transcribe(tempFile, 'test.wav');
     expect(result).toBe('Part one. Part two.');
   });
 
@@ -55,7 +72,7 @@ describe('GoogleSTTProvider', () => {
       status: 500,
       text: () => Promise.resolve('Internal Server Error'),
     });
-    await expect(provider.transcribe(Buffer.from('audio'), 'test.wav')).rejects.toThrow();
+    await expect(provider.transcribe(tempFile, 'test.wav')).rejects.toThrow();
   });
 
   it('returns empty string when no results', async () => {
@@ -63,7 +80,7 @@ describe('GoogleSTTProvider', () => {
       ok: true,
       json: () => Promise.resolve({}),
     });
-    const result = await provider.transcribe(Buffer.from('audio'), 'test.wav');
+    const result = await provider.transcribe(tempFile, 'test.wav');
     expect(result).toBe('');
   });
 });

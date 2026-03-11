@@ -2,13 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { UploadForm } from './components/UploadForm';
 import { TaskList } from './components/TaskList';
 import { TaskDetail } from './components/TaskDetail';
-import { getTasks, getTask } from './api';
+import { getTasks, getTask, initSession } from './api';
 import './App.css';
 
 function App() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState(false);
+
+  useEffect(() => {
+    initSession()
+      .then(() => setSessionReady(true))
+      .catch(() => setSessionError(true));
+  }, []);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -20,10 +28,11 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
     fetchTasks();
     const interval = setInterval(fetchTasks, 5000);
     return () => clearInterval(interval);
-  }, [fetchTasks]);
+  }, [fetchTasks, sessionReady]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -42,6 +51,20 @@ function App() {
     fetchTasks();
   };
 
+  if (sessionError) {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <div className="app-title">
+            <img src="/logo.svg" alt="VoiceBrief" className="app-logo" />
+            <h1>VoiceBrief</h1>
+          </div>
+          <p>Failed to connect. Please reload the page.</p>
+        </header>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -52,7 +75,11 @@ function App() {
         <p>Upload audio files for transcription and AI-powered summarization</p>
       </header>
 
-      <UploadForm onTaskCreated={handleTaskCreated} />
+      {sessionReady ? (
+        <UploadForm onTaskCreated={handleTaskCreated} />
+      ) : (
+        <div className="loading">Initializing...</div>
+      )}
 
       <div className="main-content">
         <div className="sidebar">

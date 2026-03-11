@@ -5,7 +5,7 @@ export function getRetryDelayMs(attempt: number): number {
 export function isRetryableError(err: unknown): boolean {
   if (err instanceof Error) {
     if (err.name === 'AbortError') return true;
-    const status = (err as Record<string, unknown>).status;
+    const status = (err as unknown as Record<string, unknown>).status;
     if (typeof status === 'number') {
       return status >= 500 || status === 429;
     }

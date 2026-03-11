@@ -8,6 +8,6 @@
     "sourceMap": true,
     "composite": true
   },
-  "include": ["*.ts"],
+  "include": ["*.ts", "security/**/*.ts"],
   "exclude": ["*.d.ts"]
 }

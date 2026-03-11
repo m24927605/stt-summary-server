@@ -4,18 +4,16 @@ import { config } from '../config';
 import { getStepMessage } from '../utils/step-message';
 import { sanitizeTaskError } from '../utils/error-sanitizer';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const sseConnections = new Map<string, number>();
 const MAX_SSE_PER_SESSION = 5;
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
-  app.get<{ Params: { id: string }; Querystring: { sessionId?: string } }>('/api/tasks/:id/events', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/tasks/:id/events', async (request, reply) => {
     const db = getDb();
     const taskId = request.params.id;
-    const sessionId = request.query.sessionId || '';
-    if (!sessionId || !UUID_RE.test(sessionId)) {
-      return reply.status(400).send({ error: 'Invalid or missing sessionId' });
-    }
+
+    // Session comes from cookie (set by session plugin), query string sessionId is ignored
+    const sessionId = request.sessionId;
 
     const task = await db.task.findUnique({ where: { id: taskId } });
     if (!task || task.sessionId !== sessionId) {

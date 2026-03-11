@@ -1,4 +1,4 @@
-import { downloadFile } from '../services/storage';
+import { downloadToTempFile, cleanupTempFile } from '../services/storage';
 import { FallbackProvider } from '../providers/fallback';
 import { OpenAISTTProvider } from '../providers/openai-stt';
 import { GoogleSTTProvider } from '../providers/google-stt';
@@ -13,7 +13,11 @@ const sttProvider = new FallbackProvider<STTProvider>(
 );
 
 export async function transcribeAudio(fileKey: string): Promise<string> {
-  const buffer = await downloadFile(fileKey);
-  const filename = path.basename(fileKey);
-  return sttProvider.execute((p) => p.transcribe(buffer, filename));
+  const tempPath = await downloadToTempFile(fileKey);
+  try {
+    const filename = path.basename(fileKey);
+    return await sttProvider.execute((p) => p.transcribe(tempPath, filename));
+  } finally {
+    await cleanupTempFile(tempPath);
+  }
 }

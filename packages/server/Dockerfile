@@ -30,6 +30,10 @@ COPY --from=builder /app/shared ./shared
 # Create symlink so Node.js can resolve 'shared/*' imports at runtime
 RUN mkdir -p /app/node_modules && ln -s /app/shared /app/node_modules/shared
 
+# dist/logger.js requires ../../../shared/security/redaction (relative to /app/dist/)
+# which resolves to /shared/security/redaction — symlink to actual location
+RUN ln -s /app/shared /shared
+
 RUN mkdir -p /app/uploads && chown node:node /app/uploads
 USER node
 EXPOSE 3000

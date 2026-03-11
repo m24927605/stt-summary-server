@@ -6,388 +6,132 @@ A full-stack speech-to-text summarization service that accepts audio files, tran
 
 ## Architecture
 
-The system follows a producer-consumer architecture with five main components:
+Producer-consumer architecture with five main components:
 
-- **Fastify API Server** -- Handles file uploads, REST endpoints, and SSE streaming
-- **RabbitMQ Worker** -- Asynchronously processes tasks (transcription + summarization)
-- **PostgreSQL** -- Stores task state, transcripts, and summaries (via Prisma ORM)
-- **MinIO (S3-compatible)** -- Stores uploaded audio files used by the worker
-- **React Frontend** -- Single-page app for uploading audio and viewing results in real-time
-- **Docker Compose** -- Orchestrates all services with health checks and shared volumes
+- **Fastify API Server** — File uploads, REST endpoints, SSE streaming
+- **RabbitMQ Worker** — Async transcription + summarization
+- **PostgreSQL** — Task state, transcripts, summaries (Prisma ORM)
+- **MinIO (S3)** — Audio file storage
+- **React Frontend** — Upload UI with real-time SSE progress
 
-For detailed diagrams and data flow, see [docs/architecture.md](docs/architecture.md).
-
-## Tech Stack
-
-| Technology | Purpose |
-|------------|---------|
-| TypeScript | Language for all packages (server, worker, shared) |
-| Fastify | High-performance HTTP server with plugin system |
-| Prisma | Type-safe ORM for PostgreSQL |
-| RabbitMQ | Message broker for async task processing |
-| PostgreSQL | Relational database for task persistence |
-| OpenAI Whisper | Speech-to-text transcription (primary) |
-| Google Cloud STT | Speech-to-text transcription (fallback) |
-| OpenAI GPT | Text summarization (primary) |
-| Anthropic Claude | Text summarization (fallback) |
-| React (Vite) | Frontend SPA with real-time SSE updates |
-| Docker Compose | Container orchestration for all services |
-
-## Prerequisites
-
-- **Docker** and **Docker Compose** (v2+)
-- **OpenAI API key** with access to Whisper and GPT models
+For diagrams and data flow, see [docs/architecture.md](docs/architecture.md).
 
 ## Quick Start
 
+**Prerequisites:** Docker + Docker Compose v2+, OpenAI API key
+
 ```bash
-# Clone the repo
-git clone <repo-url>
-cd stt-summary-server
-
-# Create .env from example
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-
-# Start all services
+cp .env.example .env   # add your OPENAI_API_KEY
 docker compose up --build
 ```
 
-Once running, access:
-
 | Service | URL |
 |---------|-----|
-| Frontend | [http://localhost:8080](http://localhost:8080) |
-| API Server | [http://localhost:3000](http://localhost:3000) |
-| RabbitMQ Management | [http://localhost:15672](http://localhost:15672) (guest/guest) |
-| MinIO Console | [http://localhost:9001](http://localhost:9001) (minioadmin/minioadmin) |
+| Frontend | http://localhost:8080 |
+| API Server | http://localhost:3000 |
+| RabbitMQ | http://localhost:15672 (guest/guest) |
+| MinIO | http://localhost:9001 (minioadmin/minioadmin) |
 
-## API Documentation
+## API
 
 ### Authentication
 
-All API endpoints (except `/api/health`) support two headers:
+Two auth models depending on route:
 
-| Header | Required | Description |
-|--------|----------|-------------|
-| `X-Session-Id` | Yes | UUID identifying the browser session. Tasks are scoped per session. |
-| `X-API-Key` | Conditional | Required when `API_KEY` env var is set. Disabled in local development. |
+| Route | Auth | Description |
+|-------|------|-------------|
+| `GET /api/health` | Public | Health check |
+| `/api/tasks/**` | Cookie session | Server-managed HttpOnly cookie + CSRF |
+| Other `/api/*` | API key | `X-API-Key` header (required when `API_KEY` is set) |
 
-```bash
-curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
-```
+Session management is automatic — the server creates and validates sessions via HttpOnly `stt_session` cookie. State-changing requests (POST/PUT/DELETE) also require `X-CSRF-Token` header matching the `csrf_token` cookie.
 
-The frontend automatically generates and persists a session ID in `localStorage`.
+For details, see [docs/security.md](docs/security.md).
 
-**Error** -- `400 Bad Request` (missing session ID):
+### Endpoints
 
-```json
-{
-  "error": "Missing X-Session-Id header"
-}
-```
-
-**Error** -- `401 Unauthorized` (missing or invalid API key):
-
-```json
-{
-  "error": "Missing or invalid API key"
-}
-```
-
-### `POST /api/tasks`
-
-Upload an audio file for transcription and summarization.
-
-- **Content-Type**: `multipart/form-data`
-- **Field**: `file` (required) -- audio file (`.wav` or `.mp3`, max 25 MB)
+#### `POST /api/tasks` — Upload audio
 
 ```bash
 curl -X POST http://localhost:3000/api/tasks \
-  -H "X-Session-Id: my-session-id" \
-  -H "X-API-Key: YOUR_API_KEY" \
+  -b "stt_session=YOUR_SESSION_COOKIE" \
+  -H "X-CSRF-Token: YOUR_CSRF_TOKEN" \
   -F "file=@recording.wav"
 ```
 
-**Success** — `201 Created`:
-
+Returns `201`:
 ```json
-{
-  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "status": "pending",
-  "originalFilename": "recording.wav",
-  "createdAt": "2026-03-02T12:00:00.000Z"
-}
+{ "id": "uuid", "status": "pending", "originalFilename": "recording.wav", "createdAt": "..." }
 ```
 
-**Error** — `400 Bad Request` (no file):
+#### `GET /api/tasks` — List tasks (scoped to session)
 
-```json
-{
-  "error": "No file uploaded"
-}
-```
+Returns `200` with array of tasks ordered by creation date (newest first).
 
-**Error** — `400 Bad Request` (invalid file type):
+#### `GET /api/tasks/:id` — Get single task
 
-```json
-{
-  "error": "Invalid file type: audio/ogg. Allowed: .wav, .mp3"
-}
-```
+Returns `200` with task detail (transcript, summary) or `404` if not found / not owned.
 
-### `GET /api/tasks`
+#### `GET /api/tasks/:id/events` — SSE stream
 
-List all tasks, ordered by creation date (newest first).
+Real-time progress via Server-Sent Events. Auth via cookie (same-origin).
 
-```bash
-curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
-```
+| Event | Data |
+|-------|------|
+| `status` | `{ status, step, message }` |
+| `completed` | `{ status, transcript, summary }` |
+| `failed` | `{ status, error }` |
 
-**Success** -- `200 OK`:
+#### `GET /api/health`
 
-```json
-[
-  {
-    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "status": "completed",
-    "step": null,
-    "originalFilename": "recording.wav",
-    "transcript": "Hello, this is a test recording...",
-    "summary": "A brief test recording greeting.",
-    "error": null,
-    "createdAt": "2026-03-02T12:00:00.000Z",
-    "updatedAt": "2026-03-02T12:01:00.000Z",
-    "completedAt": "2026-03-02T12:01:00.000Z"
-  },
-  {
-    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-    "status": "processing",
-    "step": "stt",
-    "originalFilename": "meeting.mp3",
-    "transcript": null,
-    "summary": null,
-    "error": null,
-    "createdAt": "2026-03-02T12:05:00.000Z",
-    "updatedAt": "2026-03-02T12:05:30.000Z",
-    "completedAt": null
-  }
-]
-```
-
-### `GET /api/tasks/:id`
-
-Get a single task by ID, including transcript and summary.
-
-```bash
-curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
-```
-
-**Success** — `200 OK`:
-
-```json
-{
-  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "status": "completed",
-  "step": null,
-  "originalFilename": "recording.wav",
-  "transcript": "Hello, this is a test recording...",
-  "summary": "A brief test recording greeting.",
-  "error": null,
-  "createdAt": "2026-03-02T12:00:00.000Z",
-  "updatedAt": "2026-03-02T12:01:00.000Z",
-  "completedAt": "2026-03-02T12:01:00.000Z"
-}
-```
-
-**Error** — `404 Not Found`:
-
-```json
-{
-  "error": "Task not found"
-}
-```
-
-**Failed task example** — `200 OK`:
-
-```json
-{
-  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
-  "status": "failed",
-  "step": null,
-  "originalFilename": "corrupted.wav",
-  "transcript": null,
-  "summary": null,
-  "error": "Transcription failed: Invalid audio format",
-  "createdAt": "2026-03-02T12:10:00.000Z",
-  "updatedAt": "2026-03-02T12:10:15.000Z",
-  "completedAt": null
-}
-```
-
-### `GET /api/tasks/:id/events`
-
-Server-Sent Events stream for real-time task progress.
-
-```bash
-curl -N "http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/events?sessionId=my-session-id"
-```
-
-Events emitted:
-
-| Event | When | Data |
-|-------|------|------|
-| `status` | Status or step changes | `{ status, step, message }` |
-| `completed` | Task finishes successfully | `{ status, transcript, summary }` |
-| `failed` | Task fails | `{ status, error }` |
-
-**SSE stream example** (successful task):
-
-```
-event: status
-data: {"status":"processing","step":"stt","message":"Transcribing audio..."}
-
-event: status
-data: {"status":"processing","step":"llm","message":"Generating summary..."}
-
-event: completed
-data: {"status":"completed","transcript":"Hello, this is a test recording...","summary":"A brief test recording greeting."}
-```
-
-**SSE stream example** (failed task):
-
-```
-event: status
-data: {"status":"processing","step":"stt","message":"Transcribing audio..."}
-
-event: failed
-data: {"status":"failed","error":"Transcription failed: Invalid audio format"}
-```
-
-### `GET /api/health`
-
-Health check endpoint.
-
-```bash
-curl http://localhost:3000/api/health
-```
-
-**Success** — `200 OK`:
-
-```json
-{
-  "status": "ok",
-  "uptime": 123.456,
-  "timestamp": "2026-03-02T12:00:00.000Z"
-}
-```
+Returns `200 { status: "ok", uptime, timestamp }` or `503 { status: "error" }`.
 
 ## Security
 
-### Authentication & Session Management
-- **API Key**: Required in production (`API_KEY` env var). Server refuses to start without it when `CORS_ORIGIN` is not localhost.
-- **Server-side sessions**: HttpOnly cookie with UA hash + IP prefix binding and 24h rotation.
-- **CSRF Protection**: Double-submit cookie strategy with timing-safe comparison on all POST requests.
+See [docs/security.md](docs/security.md) for full details. Key layers:
 
-### Input Validation
-- Audio file validation: mimetype allowlist + magic byte verification
-- File size limit: 25MB (enforced by multipart plugin)
-- SSE sessionId: UUID format validation
-- Transcript sanitization: prompt injection patterns filtered before LLM processing
-
-### Security Headers
-- Content-Security-Policy: restrictive `default-src 'self'` policy
-- X-Frame-Options: DENY
-- X-Content-Type-Options: nosniff
-- Referrer-Policy: strict-origin-when-cross-origin
-- Strict-Transport-Security (HTTPS)
-
-### Rate Limiting
-- POST /api/tasks: 10 req/min/IP
-- GET /api/tasks: 30 req/min/IP
-- GET /api/tasks/:id/events: 5 req/min/IP (+ max 5 concurrent SSE connections per session)
-- GET /api/health: exempt
-
-### Logging & Secrets
-- Structured Pino logging (no console.log)
-- Secret redaction in logs (API keys, bearer tokens, session tokens)
-- Error messages sanitized before client exposure
-- Request ID tracing (X-Request-ID header)
-
-### API Resilience
-- OpenAI Whisper timeout: 60s
-- OpenAI Chat timeout: 30s
-- Worker retry: exponential backoff (1s, 2s, 4s) with error classification
-- Dead-letter queue for permanently failed tasks
-
-### Provider Fallback
-- **LLM**: OpenAI GPT-4o (primary) → Anthropic Claude Sonnet 4.6 (fallback)
-- **STT**: OpenAI Whisper (primary) → Google Cloud Speech-to-Text (fallback)
-- Triggered on: timeout, HTTP 5xx, HTTP 429 (rate limit)
-- 4xx errors (auth failures) do NOT trigger fallback
-- Each attempt tries at most 2 providers before propagating to worker retry
-
-### Container Security
-- Non-root containers: server and worker run as `node` user inside Docker
+- **Server-managed sessions** — HttpOnly cookie, bound to UA hash + IP prefix, 24h auto-rotation with atomic task ownership migration
+- **CSRF double-submit** — `csrf_token` cookie + `X-CSRF-Token` header, constant-time compare, survives rotation
+- **Streaming uploads** — No `toBuffer()`, 16-byte magic byte validation, stream to S3
+- **Secure summary pipeline** — Output guard + deterministic verifier; raw LLM output never persisted
+- **Log redaction** — Shared deep recursive redaction across server and worker (nested objects, arrays, error objects)
+- **Security headers** — CSP, X-Content-Type-Options, Referrer-Policy via Helmet
+- **Durable rate limiting** — PostgreSQL-backed, survives restarts and horizontal scaling (upload: 10/min, list: 30/min, SSE: 5/min)
+- **Worker memory safety** — Temp-file path instead of whole-buffer; cleanup on success and failure
+- **IAM least privilege** — Separate server/worker ECS task roles with scoped S3 access
+- **Error sanitization** — Internal details never exposed; structured failure codes for verification/timeout
+- **Provider fallback** — OpenAI → Anthropic (LLM), OpenAI → Google (STT)
 
 ## Environment Variables
 
-All variables are configured in `.env` (copy from `.env.example`):
+Configured in `.env` (copy from `.env.example`):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key (required) | -- |
-| `API_KEY` | API key for endpoint authentication (optional, disabled if unset) | -- |
+| `OPENAI_API_KEY` | OpenAI API key (required) | — |
+| `API_KEY` | API key for non-task endpoints | — |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@postgres:5432/stt_summary` |
-| `POSTGRES_USER` | PostgreSQL username | `postgres` |
-| `POSTGRES_PASSWORD` | PostgreSQL password | `postgres` |
-| `POSTGRES_DB` | PostgreSQL database name | `stt_summary` |
 | `RABBITMQ_URL` | RabbitMQ connection string | `amqp://guest:guest@rabbitmq:5672` |
-| `SERVER_PORT` | API server port | `3000` |
-| `S3_ENDPOINT` | S3 endpoint URL (MinIO in local Docker) | `http://localhost:9000` |
-| `S3_BUCKET` | Bucket name for uploaded audio | `stt-uploads` |
-| `S3_REGION` | S3 region | `auto` |
-| `S3_ACCESS_KEY_ID` | S3 access key | `minioadmin` |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key | `minioadmin` |
-| `WHISPER_MODEL` | OpenAI Whisper model name | `whisper-1` |
-| `GPT_MODEL` | OpenAI GPT model name | `gpt-4o` |
-| `ANTHROPIC_API_KEY` | Anthropic API key (LLM fallback) | -- |
-| `ANTHROPIC_MODEL` | Anthropic model name | `claude-sonnet-4-6` |
-| `GOOGLE_API_KEY` | Google Cloud API key (STT fallback) | -- |
-| `GOOGLE_STT_LANGUAGE` | Google STT language code | `zh-TW` |
-| `CORS_ORIGIN` | Allowed CORS origin for API requests | `http://localhost:8080` |
+| `S3_ENDPOINT` | S3/MinIO endpoint | `http://localhost:9000` |
+| `S3_BUCKET` | Audio upload bucket | `stt-uploads` |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | S3 credentials (local dev) | `minioadmin` |
+| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost:8080` |
+| `ANTHROPIC_API_KEY` | Anthropic fallback key | — |
+| `GOOGLE_API_KEY` | Google STT fallback key | — |
+
+See `.env.example` for the complete list.
 
 ## Development
 
-To run services locally without Docker, you need PostgreSQL and RabbitMQ running on your machine.
-
 ```bash
-# Install dependencies
 npm install
 
-# Set up environment (point to local PostgreSQL and RabbitMQ)
-cp .env.example .env
-# Edit .env:
-#   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/stt_summary
-#   RABBITMQ_URL=amqp://guest:guest@localhost:5672
-#   S3_ENDPOINT=http://localhost:9000
-#   S3_BUCKET=stt-uploads
-#   S3_ACCESS_KEY_ID=minioadmin
-#   S3_SECRET_ACCESS_KEY=minioadmin
+# Prisma setup
+cd packages/server && npx prisma generate && npx prisma migrate deploy && cd ../..
 
-# Generate Prisma client and run migrations
-cd packages/server
-npx prisma generate
-npx prisma migrate deploy
-cd ../..
-
-# Start the API server (with hot reload)
+# Run each in a separate terminal
 npm run --workspace=packages/server dev
-
-# In a separate terminal, start the worker
 npm run --workspace=packages/worker dev
-
-# In a separate terminal, start the frontend
 npm run --workspace=packages/frontend dev
 ```
 
@@ -396,69 +140,42 @@ npm run --workspace=packages/frontend dev
 ```
 stt-summary-server/
 ├── docs/
-│   └── architecture.md          # Architecture diagrams (Mermaid)
+│   ├── architecture.md        # Architecture diagrams
+│   └── security.md            # Security architecture
 ├── packages/
-│   ├── server/                   # Fastify API server
-│   │   ├── prisma/
-│   │   │   ├── schema.prisma     # Database schema
-│   │   │   └── migrations/       # SQL migrations
-│   │   ├── src/
-│   │   │   ├── app.ts            # Fastify app builder (helmet, rate-limit, CORS)
-│   │   │   ├── server.ts         # Entry point
-│   │   │   ├── config.ts         # Environment config
-│   │   │   ├── middleware/
-│   │   │   │   └── auth.ts       # API Key authentication middleware
-│   │   │   ├── plugins/
-│   │   │   │   ├── db.ts         # Prisma database plugin
-│   │   │   │   └── rabbitmq.ts   # RabbitMQ producer plugin
-│   │   │   ├── routes/
-│   │   │   │   ├── tasks.ts      # Task CRUD endpoints
-│   │   │   │   └── events.ts     # SSE streaming endpoint
-│   │   │   ├── services/
-│   │   │   │   └── storage.ts    # S3 file storage service
-│   │   │   └── utils/
-│   │   │       ├── audio-validation.ts  # WAV/MP3 magic byte validation
-│   │   │       └── step-message.ts      # Human-readable step messages
-│   │   ├── Dockerfile
-│   │   └── package.json
-│   ├── worker/                   # Background task processor
-│   │   ├── src/
-│   │   │   ├── index.ts          # Entry point
-│   │   │   ├── config.ts         # Environment config
-│   │   │   ├── consumer.ts       # RabbitMQ consumer + task orchestration
-│   │   │   ├── providers/
-│   │   │   │   ├── types.ts      # STTProvider, LLMProvider interfaces
-│   │   │   │   ├── fallback.ts   # Generic FallbackProvider<T>
-│   │   │   │   ├── openai-stt.ts # OpenAI Whisper STT provider
-│   │   │   │   ├── google-stt.ts # Google Cloud STT fallback
-│   │   │   │   ├── openai-llm.ts # OpenAI GPT LLM provider
-│   │   │   │   └── anthropic-llm.ts # Anthropic Claude LLM fallback
-│   │   │   ├── processors/
-│   │   │   │   ├── stt.ts        # STT orchestration (FallbackProvider)
-│   │   │   │   └── llm.ts        # LLM orchestration (FallbackProvider)
-│   │   │   └── services/
-│   │   │       └── storage.ts    # S3 file download service
-│   │   ├── Dockerfile
-│   │   └── package.json
-│   └── frontend/                 # React SPA
-│       ├── src/
-│       │   ├── main.tsx          # Entry point
-│       │   ├── App.tsx           # Root component
-│       │   ├── api.ts            # API client
-│       │   ├── hooks/
-│       │   │   └── useSSE.ts     # SSE hook for real-time updates
-│       │   └── components/
-│       │       ├── UploadForm.tsx # Audio file upload form
-│       │       ├── TaskList.tsx   # Task list with status indicators
-│       │       └── TaskDetail.tsx # Task detail with live progress
-│       ├── Dockerfile
-│       └── package.json
-├── shared/                       # Shared types and constants
-│   ├── types.ts                  # TypeScript interfaces
-│   ├── constants.ts              # Status codes, queue names, limits
-│   └── package.json
-├── docker-compose.yml            # Container orchestration
-├── .env.example                  # Environment variable template
-├── package.json                  # Root workspace config
-└── tsconfig.base.json            # Shared TypeScript config
+│   ├── server/                # Fastify API server
+│   │   ├── prisma/            # Schema & migrations
+│   │   └── src/
+│   │       ├── app.ts         # App builder (plugins, middleware, routes)
+│   │       ├── logger.ts      # Pino logger with deep secret redaction
+│   │       ├── middleware/auth.ts   # API key auth (strict regex routing)
+│   │       ├── plugins/
+│   │       │   ├── session.ts # Server-managed session + CSRF plugin
+│   │       │   ├── csrf.ts    # CSRF constant-time validation
+│   │       │   ├── db.ts      # Prisma database plugin
+│   │       │   └── rabbitmq.ts
+│   │       ├── routes/
+│   │       │   ├── tasks.ts   # Task CRUD (streaming upload)
+│   │       │   └── events.ts  # SSE streaming (cookie auth)
+│   │       ├── services/
+│   │       │   ├── storage.ts # S3 streaming upload
+│   │       │   └── rate-limit.ts # Durable PostgreSQL rate limiter
+│   │       └── utils/         # Audio validation, error sanitizer, etc.
+│   ├── worker/                # Background task processor
+│   │   └── src/
+│   │       ├── consumer.ts    # RabbitMQ consumer
+│   │       ├── providers/     # STT/LLM providers with fallback
+│   │       ├── processors/    # STT & LLM orchestration
+│   │       ├── pipelines/secure-summary.ts  # Guarded summary pipeline
+│   │       ├── verification/summary-verifier.ts # Deterministic verifier
+│   │       └── utils/output-guard.ts  # LLM output redaction
+│   └── frontend/              # React SPA (Vite)
+│       └── src/
+│           ├── api.ts         # API client (cookie + CSRF from cookie)
+│           └── hooks/useSSE.ts
+├── shared/
+│   ├── constants.ts           # Shared types & constants
+│   └── security/              # Shared redaction & secret patterns
+├── docker-compose.yml
+└── .env.example
 ```

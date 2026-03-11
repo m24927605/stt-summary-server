@@ -8,5 +8,7 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY packages/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY packages/frontend/nginx.conf /etc/nginx/templates/default.conf.template
+ENV API_HOST=server
+ENV NGINX_ENVSUBST_FILTER=API_HOST
 EXPOSE 8080

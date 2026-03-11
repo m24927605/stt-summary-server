@@ -1,4 +1,4 @@
-import { Readable } from 'stream';
+import { Readable, PassThrough } from 'stream';
 import { FastifyInstance } from 'fastify';
 import { getDb } from '../plugins/db';
 import { publishTask } from '../plugins/rabbitmq';
@@ -7,9 +7,63 @@ import { isValidAudioMagicBytes } from '../utils/audio-validation';
 import { sanitizeTaskError } from '../utils/error-sanitizer';
 import { ALLOWED_MIMETYPES } from 'shared/constants';
 
+const MAGIC_BYTE_READ_SIZE = 16;
+
+function readStreamHead(stream: Readable, size: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let bytesRead = 0;
+    let resolved = false;
+
+    const onData = (chunk: Buffer) => {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      chunks.push(buf);
+      bytesRead += buf.length;
+      if (bytesRead >= size) {
+        resolved = true;
+        stream.removeListener('data', onData);
+        stream.removeListener('end', onEnd);
+        stream.pause();
+        const combined = Buffer.concat(chunks);
+        const head = combined.subarray(0, size);
+        const leftover = combined.subarray(size);
+        if (leftover.length > 0) {
+          stream.unshift(leftover);
+        }
+        resolve(head);
+      }
+    };
+
+    const onEnd = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve(Buffer.concat(chunks));
+      }
+    };
+
+    stream.on('data', onData);
+    stream.on('error', reject);
+    stream.on('end', onEnd);
+  });
+}
+
+function prependToStream(head: Buffer, remaining: Readable): Readable {
+  const passThrough = new PassThrough();
+  passThrough.write(head);
+  remaining.pipe(passThrough);
+  remaining.on('error', (err) => passThrough.destroy(err));
+  return passThrough;
+}
+
 export async function taskRoutes(app: FastifyInstance): Promise<void> {
+  // GET /api/tasks/session — Bootstrap session and return CSRF token
+  app.get('/api/tasks/session', async (request, reply) => {
+    void reply.header('Cache-Control', 'no-store, private');
+    return { csrfToken: request.csrfToken };
+  });
+
   // POST /api/tasks — Upload audio and create task
-  app.post('/api/tasks', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
+  app.post('/api/tasks', async (request, reply) => {
     const data = await request.file();
 
     if (!data) {
@@ -23,20 +77,22 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const buffer = await data.toBuffer();
+    // Read only the first 16 bytes for magic byte validation (no toBuffer)
+    const headBytes = await readStreamHead(data.file, MAGIC_BYTE_READ_SIZE);
 
-    if (!isValidAudioMagicBytes(buffer)) {
+    if (!isValidAudioMagicBytes(headBytes)) {
+      // Drain remaining stream to avoid backpressure
+      data.file.resume();
       return reply.status(400).send({
         error: 'Invalid file content: file does not appear to be a valid WAV or MP3 audio file',
       });
     }
 
-    const filePath = await saveFileStream(Readable.from(buffer), data.filename);
+    // Prepend validated head bytes back and stream remainder to S3
+    const compositeStream = prependToStream(headBytes, data.file);
+    const filePath = await saveFileStream(compositeStream, data.filename);
 
-    const sessionId = (request.headers['x-session-id'] as string) || '';
-    if (!sessionId) {
-      return reply.status(400).send({ error: 'Missing X-Session-Id header' });
-    }
+    const sessionId = request.sessionId;
 
     const db = getDb();
     const task = await db.task.create({
@@ -58,11 +114,8 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // GET /api/tasks — List tasks for current session
-  app.get('/api/tasks', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
-    const sessionId = (request.headers['x-session-id'] as string) || '';
-    if (!sessionId) {
-      return reply.status(400).send({ error: 'Missing X-Session-Id header' });
-    }
+  app.get('/api/tasks', async (request, reply) => {
+    const sessionId = request.sessionId;
 
     const db = getDb();
     const tasks = await db.task.findMany({
@@ -87,11 +140,8 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // GET /api/tasks/:id — Get single task (scoped to session)
-  app.get<{ Params: { id: string } }>('/api/tasks/:id', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
-    const sessionId = (request.headers['x-session-id'] as string) || '';
-    if (!sessionId) {
-      return reply.status(400).send({ error: 'Missing X-Session-Id header' });
-    }
+  app.get<{ Params: { id: string } }>('/api/tasks/:id', async (request, reply) => {
+    const sessionId = request.sessionId;
 
     const db = getDb();
     const task = await db.task.findUnique({

@@ -14,7 +14,9 @@ graph TB
     Worker["Worker"]
     DB["PostgreSQL<br/>:5432"]
     S3["MinIO / S3<br/>:9000"]
-    OpenAI["OpenAI API"]
+    OpenAI["OpenAI API<br/>(primary)"]
+    Anthropic["Anthropic API<br/>(LLM fallback)"]
+    Google["Google Cloud STT<br/>(STT fallback)"]
 
     Client -- "Upload audio<br/>(multipart/form-data)" --> API
     Client -- "SSE<br/>(GET /api/tasks/:id/events)" --> API
@@ -26,6 +28,8 @@ graph TB
     Worker -- "Download audio object" --> S3
     Worker -- "Whisper STT" --> OpenAI
     Worker -- "GPT Summary" --> OpenAI
+    Worker -. "LLM fallback" .-> Anthropic
+    Worker -. "STT fallback" .-> Google
 ```
 
 ### Component Responsibilities
@@ -35,10 +39,12 @@ graph TB
 | **React Frontend** | Single-page application served on port 8080. Provides file upload UI, task list, and real-time progress tracking via SSE. |
 | **API Server (Fastify)** | REST API on port 3000. Handles file uploads, task CRUD operations, SSE streaming, and publishes tasks to RabbitMQ. |
 | **RabbitMQ** | Message broker on port 5672 (management UI on 15672). Decouples task creation from processing. Supports retries with dead-letter queue. |
-| **Worker** | Background consumer that processes tasks from the queue. Calls OpenAI Whisper for transcription and GPT for summarization. |
+| **Worker** | Background consumer that processes tasks from the queue. Uses FallbackProvider to call OpenAI Whisper/GPT (primary) with Anthropic/Google Cloud STT as fallback. |
 | **PostgreSQL** | Primary data store on port 5432. Stores task metadata, transcripts, summaries, and status information via Prisma ORM. |
 | **MinIO / S3** | Object storage for uploaded audio files. API writes objects and worker reads them using S3-compatible SDK calls. |
-| **OpenAI API** | External service providing Whisper (speech-to-text) and GPT (text summarization) capabilities. |
+| **OpenAI API** | Primary provider for Whisper (speech-to-text) and GPT (text summarization). |
+| **Anthropic API** | Fallback LLM provider (Claude Sonnet 4.6) when OpenAI fails (timeout/5xx/429). |
+| **Google Cloud STT** | Fallback STT provider when OpenAI Whisper fails (timeout/5xx/429). |
 
 ## Sequence Diagram
 
@@ -55,15 +61,15 @@ sequenceDiagram
     participant OAI as OpenAI API
 
     User->>FE: Select audio file
-    FE->>API: POST /api/tasks (multipart/form-data)
-    API->>API: Validate file type & size
+    FE->>API: POST /api/tasks (multipart/form-data + cookie session + CSRF token)
+    API->>API: Validate session, CSRF, Origin, file type & magic bytes (stream)
     API->>S3: Save audio file (S3 object)
     API->>DB: Create task (status: pending)
     API->>MQ: Publish {taskId} to task_queue
     API-->>FE: 201 Created {id, status, originalFilename}
 
-    FE->>API: GET /api/tasks/:id/events
-    Note over FE,API: SSE connection opened
+    FE->>API: GET /api/tasks/:id/events (cookie session, no query string)
+    Note over FE,API: SSE connection opened (cookie-based auth)
 
     MQ->>W: Consume message {taskId}
     W->>DB: Update status: processing, step: stt
@@ -109,13 +115,16 @@ stateDiagram-v2
 
 ## Data Model
 
-The system uses a single `tasks` table managed by Prisma ORM:
+The system uses Prisma ORM with the following tables:
+
+### `tasks` table
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID | Primary key, auto-generated |
 | `status` | VARCHAR(20) | Current task status (`pending`, `processing`, `completed`, `failed`) |
 | `step` | VARCHAR(20) | Current processing step (`stt`, `llm`, or null) |
+| `session_id` | VARCHAR(36) | Server-managed session ID (references `sessions.id`) |
 | `original_filename` | VARCHAR(255) | Original uploaded file name |
 | `file_path` | VARCHAR(500) | S3 object key for the uploaded audio file |
 | `transcript` | TEXT | Whisper transcription output |
@@ -124,6 +133,34 @@ The system uses a single `tasks` table managed by Prisma ORM:
 | `created_at` | TIMESTAMPTZ | Task creation timestamp |
 | `updated_at` | TIMESTAMPTZ | Last update timestamp |
 | `completed_at` | TIMESTAMPTZ | Completion timestamp (null until completed) |
+
+**Indexes:** `idx_tasks_session_id` (session_id), `idx_tasks_status` (status)
+
+### `sessions` table
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key, auto-generated |
+| `ua_hash` | VARCHAR(64) | SHA-256 hash of User-Agent |
+| `ip_prefix` | VARCHAR(48) | First 3 octets of client IP |
+| `csrf_token` | VARCHAR(64) | CSRF double-submit token |
+| `expires_at` | TIMESTAMPTZ | Session expiration time |
+| `rotated_to` | UUID | ID of replacement session (nullable) |
+| `revoked` | BOOLEAN | Whether session has been revoked |
+| `created_at` | TIMESTAMPTZ | Session creation timestamp |
+| `last_seen_at` | TIMESTAMPTZ | Last activity timestamp |
+
+## Security
+
+See [docs/security.md](security.md) for the full security architecture. Key highlights:
+
+- **Two auth models**: Cookie session (task routes) and API key (other routes), enforced via strict regex route matching
+- **Server-managed sessions**: HttpOnly `stt_session` cookie, bound to User-Agent hash + IP prefix, stored in PostgreSQL
+- **CSRF double-submit**: `csrf_token` JS-readable cookie + `X-CSRF-Token` header with constant-time comparison
+- **Streaming uploads**: 16-byte head read for magic byte validation, stream piped to S3 (no `toBuffer()`)
+- **Deep log redaction**: Recursive redaction of secrets in all log output (API keys, bearer tokens, session tokens, sensitive query params)
+- **Security headers**: CSP, X-Content-Type-Options, Referrer-Policy via Helmet
+- **Per-endpoint rate limiting**: Different limits per route, health check exempt
 
 ## Message Queue Design
 

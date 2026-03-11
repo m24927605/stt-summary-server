@@ -32,7 +32,7 @@ resource "aws_ecs_task_definition" "server" {
   cpu                      = var.server_cpu
   memory                   = var.server_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  task_role_arn            = aws_iam_role.ecs_task_server.arn
 
   container_definitions = jsonencode([{
     name  = "server"
@@ -87,7 +87,7 @@ resource "aws_ecs_task_definition" "worker" {
   cpu                      = var.worker_cpu
   memory                   = var.worker_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  task_role_arn            = aws_iam_role.ecs_task_worker.arn
 
   container_definitions = jsonencode([{
     name  = "worker"
