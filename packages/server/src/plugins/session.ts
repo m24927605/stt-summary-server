@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { getDb } from './db';
 import { validateCsrf } from './csrf';
 import { config } from '../config';
@@ -59,7 +59,7 @@ export async function rotateSession(
   oldSessionId: string,
   sessionData: { uaHash: string; ipPrefix: string; csrfToken: string; expiresAt: Date },
 ): Promise<RotationResult> {
-  const result = await db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
     // Create new session
     const newSession = await tx.session.create({
       data: {
@@ -98,11 +98,7 @@ export async function rotateSession(
  * Returns the active session or null if the chain is broken, cyclic,
  * exceeds maxHops, or leads to a missing/revoked-without-successor session.
  */
-export async function followRotationChain(
-  db: PrismaClient,
-  startSessionId: string,
-  maxHops: number = 8,
-): Promise<{
+export interface SessionRow {
   id: string;
   uaHash: string;
   ipPrefix: string;
@@ -112,7 +108,13 @@ export async function followRotationChain(
   revoked: boolean;
   createdAt: Date;
   lastSeenAt: Date;
-} | null> {
+}
+
+export async function followRotationChain(
+  db: PrismaClient,
+  startSessionId: string,
+  maxHops: number = 8,
+): Promise<SessionRow | null> {
   const visited = new Set<string>();
   let currentId: string | null = startSessionId;
 
@@ -121,7 +123,7 @@ export async function followRotationChain(
     if (visited.has(currentId)) return null; // cycle detected
     visited.add(currentId);
 
-    const session = await db.session.findUnique({ where: { id: currentId } });
+    const session: SessionRow | null = await db.session.findUnique({ where: { id: currentId } });
     if (!session) return null;
 
     if (!session.revoked) return session;

@@ -1,5 +1,6 @@
 import { Readable, PassThrough } from 'stream';
 import { FastifyInstance } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { getDb } from '../plugins/db';
 import { publishTask } from '../plugins/rabbitmq';
 import { saveFileStream } from '../services/storage';
@@ -124,7 +125,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     });
 
     return reply.send(
-      tasks.map((t) => ({
+      tasks.map((t: Prisma.TaskGetPayload<object>) => ({
         id: t.id,
         status: t.status,
         step: t.step,
