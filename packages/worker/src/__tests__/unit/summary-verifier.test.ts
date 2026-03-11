@@ -72,4 +72,11 @@ describe('summary-verifier', () => {
     expect(result.isConsistent).toBe(false);
     expect(result.issues.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('fails when summary contains assistant refusal language', () => {
+    const summary = 'I cannot comply with that request, but the company had 150 employees.';
+    const result = verifySummaryAgainstTranscript(summary, baseTranscript);
+    expect(result.isConsistent).toBe(false);
+    expect(result.issues.some((i) => i.includes('meta-response'))).toBe(true);
+  });
 });

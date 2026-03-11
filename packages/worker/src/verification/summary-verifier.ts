@@ -6,6 +6,13 @@ export interface SummaryVerificationResult {
 }
 
 const DEFAULT_MAX_SUMMARY_LENGTH = 10000;
+const META_RESPONSE_PATTERNS: RegExp[] = [
+  /\bas an ai\b/i,
+  /\bi can(?:not|'t)\s+(?:comply|reveal|provide|follow)\b/i,
+  /\bi (?:won't|will not)\s+(?:comply|reveal|provide|follow)\b/i,
+  /\bi am unable to\b/i,
+  /\bi cannot assist with that\b/i,
+];
 
 /**
  * Deterministic summary verifier. Does NOT call an LLM.
@@ -16,6 +23,7 @@ const DEFAULT_MAX_SUMMARY_LENGTH = 10000;
  * 3. No secret-like patterns remain after output guard.
  * 4. Summary does not exceed max length.
  * 5. Summary is not empty or whitespace-only.
+ * 6. Summary does not contain assistant meta-response / refusal language.
  */
 export function verifySummaryAgainstTranscript(
   summary: string,
@@ -38,6 +46,14 @@ export function verifySummaryAgainstTranscript(
   // Check 3: secret-like patterns
   if (containsSecretPatterns(summary)) {
     issues.push('Summary contains secret-like patterns after output guard');
+  }
+
+  // Check 6: assistant meta-response / refusal language indicates the model treated transcript as instructions.
+  for (const pattern of META_RESPONSE_PATTERNS) {
+    if (pattern.test(summary)) {
+      issues.push('Summary contains assistant meta-response language');
+      break;
+    }
   }
 
   // Check 1: numbers in summary must appear in transcript
