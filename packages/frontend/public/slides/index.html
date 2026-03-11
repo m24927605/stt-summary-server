@@ -611,7 +611,7 @@
       <div class="card">
         <span class="eyebrow">Realtime UX</span>
         <h4>進度即時回推</h4>
-        <p>SSE 將 `queued / stt / llm / completed / failed` 持續推給前端，不靠 polling。</p>
+        <p>SSE 持續把 `pending / processing / completed / failed` 狀態與目前 `stt / llm` 步驟送給前端，避免前端主動輪詢。</p>
       </div>
       <div class="card">
         <span class="eyebrow">Reliability</span>
@@ -647,7 +647,7 @@
       <div class="flow-step">
         <span class="eyebrow">Fastify</span>
         <strong>2. Validate</strong>
-        <span>檢查 magic bytes、大小、session、CSRF、API key，先擋掉明顯無效請求。</span>
+        <span>檢查 magic bytes、大小、session、CSRF、Origin，先擋掉明顯無效請求。</span>
       </div>
       <div class="flow-step">
         <span class="eyebrow">Storage</span>
@@ -672,7 +672,7 @@
       <div class="flow-step">
         <span class="eyebrow">SSE</span>
         <strong>7. Push Status</strong>
-        <span>前端收到 step 與結果更新，失敗也會回傳 sanitized error，不泄漏內部細節。</span>
+        <span>server 透過 SSE 輸出 task 狀態與結果；失敗時只回傳 sanitized error，不暴露內部細節。</span>
       </div>
     </div>
     <div class="banner">設計重點是每一段都能單獨擴容、單獨失敗、單獨觀測，而不是把所有邏輯塞在一條 request handler 內。</div>
@@ -692,7 +692,7 @@
         <ul class="list-tight">
           <li>只讀前 16 bytes 做 magic byte 檢查，不信任副檔名與 MIME type。</li>
           <li>驗證失敗直接中止 stream，避免垃圾檔案繼續走完整 pipeline。</li>
-          <li>支援 WAV、MP3、M4A、WebM、OGG。</li>
+          <li>目前實作支援 WAV、MP3；驗證同時看 MIME type 與 magic bytes。</li>
         </ul>
       </div>
       <div class="card">
@@ -747,7 +747,7 @@ await storage.upload({ Body: compositeStream });</code></pre>
       </div>
       <div class="summary-item">
         <h4>API Key Gate</h4>
-        <p>後端寫操作需要 API key，避免匿名濫用 upload 與 queue capacity。</p>
+        <p>task routes 由 session、CSRF 與 Origin 驗證保護；其他非 task 的 `/api/*` 路由才套用 API key。</p>
       </div>
       <div class="summary-item">
         <h4>Request ID + Sanitized Error</h4>
@@ -787,7 +787,7 @@ await storage.upload({ Body: compositeStream });</code></pre>
         <div class="threat-stack">
           <div class="shield">
             <h4>1. Normalize + sanitize transcript</h4>
-            <p>NFKC normalization、移除 zero-width chars、過濾 `ignore instructions`、`developer message`、`system prompt`、混淆拼寫與 compact phrase。</p>
+            <p>NFKC normalization、移除 zero-width chars、過濾 `ignore instructions`、`developer message`、`tool instructions`、`system prompt` 與混淆拼寫。</p>
           </div>
           <div class="shield">
             <h4>2. Strong prompt boundary</h4>
@@ -859,7 +859,7 @@ verifySummaryAgainstTranscript(summary)</code></pre>
         <h4>單向推送就足夠，而且更簡潔</h4>
         <ul class="list-tight">
           <li>這個場景只需要 server → client 的狀態推送，不需要 WebSocket 雙向複雜度。</li>
-          <li>前端收到 `progress`、`completed`、`failed` 後直接更新 task list 與 detail view。</li>
+          <li>前端收到 `status`、`completed`、`failed` 後直接更新 task list 與 detail view。</li>
           <li>重連邏輯簡單，部署與代理層也更穩。</li>
         </ul>
       </div>
@@ -869,7 +869,7 @@ verifySummaryAgainstTranscript(summary)</code></pre>
         <div class="timeline">
           <div class="tick">
             <div class="time">T+0s</div>
-            <div class="desc">Task 建立，前端立即出現 queued 狀態。</div>
+            <div class="desc">Task 建立，前端立即出現 pending 狀態。</div>
           </div>
           <div class="tick">
             <div class="time">T+1s</div>
@@ -877,7 +877,7 @@ verifySummaryAgainstTranscript(summary)</code></pre>
           </div>
           <div class="tick">
             <div class="time">T+N</div>
-            <div class="desc">LLM 摘要或 fallback 啟動時，畫面持續同步更新。</div>
+            <div class="desc">LLM 摘要或 fallback 啟動時，畫面會依最新 task 狀態持續更新。</div>
           </div>
           <div class="tick">
             <div class="time">Done</div>
