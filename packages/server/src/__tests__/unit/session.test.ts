@@ -16,6 +16,7 @@ import {
   createSessionData,
   shouldRotateSession,
   rotateSession,
+  followRotationChain,
 } from '../../plugins/session';
 
 describe('session helpers', () => {
@@ -175,6 +176,100 @@ describe('session helpers', () => {
 
       expect(result.newCsrfToken).toBe('brand-new-token');
       expect(result.newCsrfToken).not.toBe('old-csrf-token');
+    });
+  });
+
+  describe('followRotationChain', () => {
+    function mockDb(sessions: Record<string, any>) {
+      return {
+        session: {
+          findUnique: vi.fn(({ where }: { where: { id: string } }) =>
+            Promise.resolve(sessions[where.id] ?? null),
+          ),
+        },
+      } as unknown as any;
+    }
+
+    function makeSession(id: string, overrides: Record<string, any> = {}) {
+      return {
+        id,
+        uaHash: 'hash',
+        ipPrefix: '192.168.1',
+        csrfToken: 'tok-' + id,
+        expiresAt: new Date(Date.now() + 86400000),
+        rotatedTo: null,
+        revoked: false,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        ...overrides,
+      };
+    }
+
+    it('returns the session itself when it is active', async () => {
+      const active = makeSession('s1');
+      const db = mockDb({ s1: active });
+      const result = await followRotationChain(db, 's1');
+      expect(result).toEqual(active);
+    });
+
+    it('follows a one-hop chain to the active session', async () => {
+      const revoked = makeSession('s1', { revoked: true, rotatedTo: 's2' });
+      const active = makeSession('s2');
+      const db = mockDb({ s1: revoked, s2: active });
+      const result = await followRotationChain(db, 's1');
+      expect(result).toEqual(active);
+    });
+
+    it('follows a multi-hop chain to the active session', async () => {
+      const s1 = makeSession('s1', { revoked: true, rotatedTo: 's2' });
+      const s2 = makeSession('s2', { revoked: true, rotatedTo: 's3' });
+      const s3 = makeSession('s3', { revoked: true, rotatedTo: 's4' });
+      const s4 = makeSession('s4');
+      const db = mockDb({ s1, s2, s3, s4 });
+      const result = await followRotationChain(db, 's1');
+      expect(result).toEqual(s4);
+    });
+
+    it('returns null when session does not exist', async () => {
+      const db = mockDb({});
+      const result = await followRotationChain(db, 'nonexistent');
+      expect(result).toBeNull();
+    });
+
+    it('returns null for a revoked session with rotatedTo = null', async () => {
+      const revoked = makeSession('s1', { revoked: true, rotatedTo: null });
+      const db = mockDb({ s1: revoked });
+      const result = await followRotationChain(db, 's1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when hop count exceeds maxHops', async () => {
+      const sessions: Record<string, any> = {};
+      for (let i = 1; i <= 10; i++) {
+        sessions[`s${i}`] = makeSession(`s${i}`, {
+          revoked: true,
+          rotatedTo: i < 10 ? `s${i + 1}` : null,
+        });
+      }
+      sessions['s10'] = makeSession('s10');
+      const db = mockDb(sessions);
+      const result = await followRotationChain(db, 's1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when a cycle is detected', async () => {
+      const s1 = makeSession('s1', { revoked: true, rotatedTo: 's2' });
+      const s2 = makeSession('s2', { revoked: true, rotatedTo: 's1' });
+      const db = mockDb({ s1, s2 });
+      const result = await followRotationChain(db, 's1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when chain leads to a missing session', async () => {
+      const s1 = makeSession('s1', { revoked: true, rotatedTo: 's2' });
+      const db = mockDb({ s1 });
+      const result = await followRotationChain(db, 's1');
+      expect(result).toBeNull();
     });
   });
 });

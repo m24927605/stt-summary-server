@@ -91,6 +91,48 @@ export async function rotateSession(
   return result;
 }
 
+/**
+ * Walks the rotatedTo chain from a starting session ID until it finds
+ * an active (non-revoked) session or exhausts the chain.
+ *
+ * Returns the active session or null if the chain is broken, cyclic,
+ * exceeds maxHops, or leads to a missing/revoked-without-successor session.
+ */
+export async function followRotationChain(
+  db: PrismaClient,
+  startSessionId: string,
+  maxHops: number = 8,
+): Promise<{
+  id: string;
+  uaHash: string;
+  ipPrefix: string;
+  csrfToken: string;
+  expiresAt: Date;
+  rotatedTo: string | null;
+  revoked: boolean;
+  createdAt: Date;
+  lastSeenAt: Date;
+} | null> {
+  const visited = new Set<string>();
+  let currentId: string | null = startSessionId;
+
+  for (let hop = 0; hop <= maxHops; hop++) {
+    if (!currentId) return null;
+    if (visited.has(currentId)) return null; // cycle detected
+    visited.add(currentId);
+
+    const session = await db.session.findUnique({ where: { id: currentId } });
+    if (!session) return null;
+
+    if (!session.revoked) return session;
+
+    // Revoked — follow the chain
+    currentId = session.rotatedTo;
+  }
+
+  return null; // exceeded maxHops
+}
+
 function getClientIp(request: FastifyRequest): string {
   return request.ip || '127.0.0.1';
 }
