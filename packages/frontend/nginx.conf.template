@@ -15,6 +15,10 @@ server {
         proxy_read_timeout 300s;
     }
 
+    location = /slides {
+        rewrite ^ /slides/index.html last;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
