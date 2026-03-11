@@ -746,6 +746,10 @@ await storage.upload({ Body: compositeStream });</code></pre>
         <p>session 更新時保留任務 ownership 一致性，不讓新舊 session 交錯讀寫。</p>
       </div>
       <div class="summary-item">
+        <h4>Bootstrap-only Recovery</h4>
+        <p>舊的 rotated cookie 只允許在 <code>GET /api/tasks/session</code> 修復，不把 revoked session 變成通用通行證。</p>
+      </div>
+      <div class="summary-item">
         <h4>API Key Gate</h4>
         <p>task routes 由 session、CSRF 與 Origin 驗證保護；其他非 task 的 `/api/*` 路由才套用 API key。</p>
       </div>

@@ -180,6 +180,7 @@ See [docs/security.md](security.md) for the full security architecture. Key high
 - **Two auth models**: Cookie session (task routes) and API key (other routes), enforced via strict regex route matching
 - **Server-managed sessions**: HttpOnly `stt_session` cookie, bound to User-Agent hash + IP prefix, stored in PostgreSQL
 - **Session bootstrap endpoint**: `GET /api/tasks/session` initializes session state and CSRF token for browser clients
+- **Bootstrap-only rotated-session recovery**: stale rotated cookies can be repaired only through `GET /api/tasks/session`; other routes still reject revoked sessions
 - **CSRF double-submit**: `csrf_token` JS-readable cookie + `X-CSRF-Token` header with constant-time comparison
 - **Streaming uploads**: 16-byte head read for magic byte validation, stream piped to S3 (no `toBuffer()`)
 - **Secure summary pipeline**: sanitize transcript, generate summary, guard output, verify deterministically, then persist
