@@ -1,25 +1,19 @@
-import OpenAI, { toFile } from 'openai';
-import path from 'path';
-import { config } from '../config';
 import { downloadFile } from '../services/storage';
+import { FallbackProvider } from '../providers/fallback';
+import { OpenAISTTProvider } from '../providers/openai-stt';
+import { GoogleSTTProvider } from '../providers/google-stt';
+import { isRetryableError } from '../utils/retry';
+import { STTProvider } from '../providers/types';
+import path from 'path';
 
-const openai = new OpenAI({ apiKey: config.openaiApiKey });
-
-const STT_TIMEOUT_MS = 60_000;
+const sttProvider = new FallbackProvider<STTProvider>(
+  new OpenAISTTProvider(),
+  new GoogleSTTProvider(),
+  isRetryableError,
+);
 
 export async function transcribeAudio(fileKey: string): Promise<string> {
   const buffer = await downloadFile(fileKey);
   const filename = path.basename(fileKey);
-  const file = await toFile(buffer, filename);
-
-  const transcription = await openai.audio.transcriptions.create(
-    {
-      file,
-      model: config.whisperModel,
-      response_format: 'text',
-    },
-    { signal: AbortSignal.timeout(STT_TIMEOUT_MS) }
-  );
-
-  return transcription as unknown as string;
+  return sttProvider.execute((p) => p.transcribe(buffer, filename));
 }

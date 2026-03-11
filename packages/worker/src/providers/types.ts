@@ -1,6 +1,6 @@
 export interface STTProvider {
   readonly name: string;
-  transcribe(filePath: string, filename: string): Promise<string>;
+  transcribe(buffer: Buffer, filename: string): Promise<string>;
 }
 
 export interface LLMProvider {

@@ -26,8 +26,10 @@ For detailed diagrams and data flow, see [docs/architecture.md](docs/architectur
 | Prisma | Type-safe ORM for PostgreSQL |
 | RabbitMQ | Message broker for async task processing |
 | PostgreSQL | Relational database for task persistence |
-| OpenAI Whisper | Speech-to-text transcription |
-| OpenAI GPT | Text summarization |
+| OpenAI Whisper | Speech-to-text transcription (primary) |
+| Google Cloud STT | Speech-to-text transcription (fallback) |
+| OpenAI GPT | Text summarization (primary) |
+| Anthropic Claude | Text summarization (fallback) |
 | React (Vite) | Frontend SPA with real-time SSE updates |
 | Docker Compose | Container orchestration for all services |
 
@@ -318,6 +320,13 @@ curl http://localhost:3000/api/health
 - Worker retry: exponential backoff (1s, 2s, 4s) with error classification
 - Dead-letter queue for permanently failed tasks
 
+### Provider Fallback
+- **LLM**: OpenAI GPT-4o (primary) → Anthropic Claude Sonnet 4.6 (fallback)
+- **STT**: OpenAI Whisper (primary) → Google Cloud Speech-to-Text (fallback)
+- Triggered on: timeout, HTTP 5xx, HTTP 429 (rate limit)
+- 4xx errors (auth failures) do NOT trigger fallback
+- Each attempt tries at most 2 providers before propagating to worker retry
+
 ### Container Security
 - Non-root containers: server and worker run as `node` user inside Docker
 
@@ -342,6 +351,10 @@ All variables are configured in `.env` (copy from `.env.example`):
 | `S3_SECRET_ACCESS_KEY` | S3 secret key | `minioadmin` |
 | `WHISPER_MODEL` | OpenAI Whisper model name | `whisper-1` |
 | `GPT_MODEL` | OpenAI GPT model name | `gpt-4o` |
+| `ANTHROPIC_API_KEY` | Anthropic API key (LLM fallback) | -- |
+| `ANTHROPIC_MODEL` | Anthropic model name | `claude-sonnet-4-6` |
+| `GOOGLE_API_KEY` | Google Cloud API key (STT fallback) | -- |
+| `GOOGLE_STT_LANGUAGE` | Google STT language code | `zh-TW` |
 | `CORS_ORIGIN` | Allowed CORS origin for API requests | `http://localhost:8080` |
 
 ## Development
@@ -413,9 +426,16 @@ stt-summary-server/
 │   │   │   ├── index.ts          # Entry point
 │   │   │   ├── config.ts         # Environment config
 │   │   │   ├── consumer.ts       # RabbitMQ consumer + task orchestration
+│   │   │   ├── providers/
+│   │   │   │   ├── types.ts      # STTProvider, LLMProvider interfaces
+│   │   │   │   ├── fallback.ts   # Generic FallbackProvider<T>
+│   │   │   │   ├── openai-stt.ts # OpenAI Whisper STT provider
+│   │   │   │   ├── google-stt.ts # Google Cloud STT fallback
+│   │   │   │   ├── openai-llm.ts # OpenAI GPT LLM provider
+│   │   │   │   └── anthropic-llm.ts # Anthropic Claude LLM fallback
 │   │   │   ├── processors/
-│   │   │   │   ├── stt.ts        # OpenAI Whisper integration
-│   │   │   │   └── llm.ts        # OpenAI GPT integration
+│   │   │   │   ├── stt.ts        # STT orchestration (FallbackProvider)
+│   │   │   │   └── llm.ts        # LLM orchestration (FallbackProvider)
 │   │   │   └── services/
 │   │   │       └── storage.ts    # S3 file download service
 │   │   ├── Dockerfile

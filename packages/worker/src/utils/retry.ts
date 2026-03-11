@@ -7,7 +7,7 @@ export function isRetryableError(err: unknown): boolean {
     if (err.name === 'AbortError') return true;
     const status = (err as Record<string, unknown>).status;
     if (typeof status === 'number') {
-      return status >= 500;
+      return status >= 500 || status === 429;
     }
   }
   return true;

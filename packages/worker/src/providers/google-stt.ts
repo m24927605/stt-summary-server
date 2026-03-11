@@ -1,4 +1,3 @@
-import { promises as fs } from 'fs';
 import { config } from '../config';
 import { STTProvider } from './types';
 
@@ -13,13 +12,9 @@ interface GoogleSTTResponse {
 export class GoogleSTTProvider implements STTProvider {
   readonly name = 'google';
 
-  async transcribe(filePath: string, filename: string): Promise<string> {
+  async transcribe(buffer: Buffer, filename: string): Promise<string> {
     const encoding = filename.endsWith('.wav') ? 'LINEAR16' : 'MP3';
     const url = `https://speech.googleapis.com/v1/speech:recognize?key=${config.googleApiKey}`;
-
-    // Google STT REST API requires base64; read file within provider scope only
-    const fileBuffer = await fs.readFile(filePath);
-    const base64Content = fileBuffer.toString('base64');
 
     const response = await fetch(url, {
       method: 'POST',
@@ -30,7 +25,7 @@ export class GoogleSTTProvider implements STTProvider {
           languageCode: config.googleSttLanguage,
           enableAutomaticPunctuation: true,
         },
-        audio: { content: base64Content },
+        audio: { content: buffer.toString('base64') },
       }),
       signal: AbortSignal.timeout(STT_TIMEOUT_MS),
     });
@@ -38,11 +33,11 @@ export class GoogleSTTProvider implements STTProvider {
     if (!response.ok) {
       const text = await response.text();
       const err = new Error(`Google STT API error: ${response.status} ${text}`);
-      (err as unknown as Record<string, unknown>).status = response.status;
+      (err as Record<string, unknown>).status = response.status;
       throw err;
     }
 
-    const data = (await response.json()) as GoogleSTTResponse;
+    const data: GoogleSTTResponse = await response.json();
     return (data.results || [])
       .map((r) => r.alternatives?.[0]?.transcript || '')
       .join('');

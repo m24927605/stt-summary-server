@@ -12,4 +12,8 @@ export const config = {
   s3Region: env.S3_REGION || 'auto',
   s3AccessKeyId: env.S3_ACCESS_KEY_ID || '',
   s3SecretAccessKey: env.S3_SECRET_ACCESS_KEY || '',
+  anthropicApiKey: env.ANTHROPIC_API_KEY || '',
+  anthropicModel: env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+  googleApiKey: env.GOOGLE_API_KEY || '',
+  googleSttLanguage: env.GOOGLE_STT_LANGUAGE || 'zh-TW',
 };

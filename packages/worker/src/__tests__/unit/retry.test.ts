@@ -50,6 +50,12 @@ describe('isRetryableError', () => {
     expect(isRetryableError(err)).toBe(false);
   });
 
+  it('returns true for 429 rate limit errors', () => {
+    const err = new Error('Rate limit exceeded');
+    (err as Record<string, unknown>).status = 429;
+    expect(isRetryableError(err)).toBe(true);
+  });
+
   it('returns true for unknown errors (default retry)', () => {
     expect(isRetryableError(new Error('something'))).toBe(true);
   });
