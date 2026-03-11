@@ -205,4 +205,72 @@ describe('session rotation order with CSRF/Origin validation', () => {
     expect(mockTransaction).toHaveBeenCalled();
     expect(request.sessionId).toBe('new-session-id');
   });
+
+  it('POST with revoked rotated cookie still returns 401 Session revoked', async () => {
+    const revokedSession = {
+      ...makeOldSession(validCsrfToken),
+      revoked: true,
+      rotatedTo: 'new-active-session-id',
+      // Override createdAt so it does NOT trigger the rotation-threshold branch
+      createdAt: new Date(),
+    };
+    mockFindUnique.mockResolvedValue(revokedSession);
+
+    const hook = await getOnRequestHook();
+    const request = makeRequest('POST', {
+      'x-csrf-token': validCsrfToken,
+      origin: 'http://localhost:8080',
+    });
+    const reply = makeReply();
+
+    await hook(request, reply);
+
+    expect(reply.status).toHaveBeenCalledWith(401);
+    expect(reply.body).toEqual({ error: 'Session revoked' });
+  });
+
+  it('GET /api/tasks/session with revoked rotated cookie recovers to active session', async () => {
+    const activeSession = {
+      id: 'active-session-id',
+      uaHash: hashUserAgent('Mozilla/5.0 Test'),
+      ipPrefix: extractIpPrefix('192.168.1.100'),
+      csrfToken: 'active-csrf-token',
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      rotatedTo: null,
+      revoked: false,
+      createdAt: new Date(),
+      lastSeenAt: new Date(),
+    };
+
+    const revokedSession = {
+      ...makeOldSession(validCsrfToken),
+      revoked: true,
+      rotatedTo: 'active-session-id',
+      createdAt: new Date(),
+    };
+
+    mockFindUnique.mockImplementation(({ where }: any) => {
+      if (where.id === 'old-session-id') return Promise.resolve(revokedSession);
+      if (where.id === 'active-session-id') return Promise.resolve(activeSession);
+      return Promise.resolve(null);
+    });
+
+    const hook = await getOnRequestHook();
+    const request = {
+      ...makeRequest('GET'),
+      url: '/api/tasks/session',
+    };
+    const reply = makeReply();
+
+    await hook(request, reply);
+
+    // Should NOT return 401
+    expect(reply.status).not.toHaveBeenCalledWith(401);
+    // Should adopt the active session
+    expect(request.sessionId).toBe('active-session-id');
+    expect(request.csrfToken).toBe('active-csrf-token');
+    // Should refresh cookies
+    expect(reply.setCookie).toHaveBeenCalledWith('stt_session', 'active-session-id', expect.any(Object));
+    expect(reply.setCookie).toHaveBeenCalledWith('csrf_token', 'active-csrf-token', expect.any(Object));
+  });
 });

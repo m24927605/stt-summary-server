@@ -179,6 +179,38 @@ export const sessionPlugin = fp(async function sessionPlugin(app: FastifyInstanc
       }
 
       if (session.revoked) {
+        // Recovery: only on GET /api/tasks/session bootstrap endpoint
+        const isBootstrap =
+          request.method === 'GET' &&
+          request.url.split('?')[0] === '/api/tasks/session';
+
+        if (isBootstrap && session.rotatedTo) {
+          const target = await followRotationChain(db, session.rotatedTo);
+
+          if (!target || target.expiresAt <= new Date()) {
+            void reply.clearCookie(SESSION_COOKIE, { path: '/' });
+            return reply.status(401).send({ error: 'Session revoked' });
+          }
+
+          if (!validateSessionBinding(target, currentUaHash, currentIpPrefix)) {
+            void reply.clearCookie(SESSION_COOKIE, { path: '/' });
+            return reply.status(401).send({ error: 'Session binding mismatch' });
+          }
+
+          // Adopt the active target session
+          request.sessionId = target.id;
+          request.csrfToken = target.csrfToken;
+          setCookies(reply, target.id, target.csrfToken);
+
+          // Best-effort update lastSeenAt
+          db.session.update({
+            where: { id: target.id },
+            data: { lastSeenAt: new Date() },
+          }).catch(() => {});
+
+          return; // allow route handler to respond normally
+        }
+
         void reply.clearCookie(SESSION_COOKIE, { path: '/' });
         return reply.status(401).send({ error: 'Session revoked' });
       }
