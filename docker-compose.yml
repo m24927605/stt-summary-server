@@ -97,8 +97,12 @@ services:
       # DEV ONLY — do not use in production
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
       WHISPER_MODEL: ${WHISPER_MODEL:-whisper-1}
       GPT_MODEL: ${GPT_MODEL:-gpt-4o}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GOOGLE_STT_LANGUAGE: ${GOOGLE_STT_LANGUAGE:-zh-TW}
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET: stt-uploads
       S3_REGION: auto
