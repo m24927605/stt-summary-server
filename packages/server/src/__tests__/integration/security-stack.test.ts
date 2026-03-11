@@ -603,6 +603,11 @@ describe('security stack integration', () => {
       ]),
     );
 
+    // Verify task query was scoped to the recovered session ID
+    expect(mockTaskFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: 'active-history-sess' } }),
+    );
+
     await app.close();
   });
 
