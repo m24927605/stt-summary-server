@@ -48,6 +48,24 @@ Sessions rotate automatically after 24 hours (configurable via `ROTATION_THRESHO
 - Frontend reads `csrf_token` from `document.cookie` on every unsafe request (not cached at init time)
 - No page reload required after rotation
 
+### Rotated Session Recovery
+
+If a browser presents a stale `stt_session` cookie pointing to a revoked session that has a `rotated_to` value, limited recovery is available:
+
+**Recovery scope:** `GET /api/tasks/session` only. All other routes reject revoked cookies immediately.
+
+**Recovery flow:**
+1. Session plugin detects revoked session with `rotated_to` set
+2. `followRotationChain()` walks the `rotated_to` chain (max 8 hops, cycle-safe)
+3. Target session must be active, not expired, and pass UA hash + IP prefix binding
+4. On success: adopts target session, refreshes `stt_session` + `csrf_token` cookies
+5. On failure: clears cookie, returns 401
+
+**Security invariants preserved:**
+- Unsafe methods (POST/PUT/DELETE) never follow rotation chains from revoked cookies
+- Old CSRF tokens are never accepted for rotated sessions
+- The browser must complete a bootstrap request before unsafe requests use the new session
+
 ## CSRF
 
 Double-submit cookie pattern (POST/PUT/DELETE only):
