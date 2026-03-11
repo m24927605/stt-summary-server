@@ -18,9 +18,6 @@ export async function connectQueue(): Promise<void> {
       await channel.assertQueue(DEAD_LETTER_QUEUE, { durable: true });
       await channel.assertQueue(QUEUE_NAME, {
         durable: true,
-        arguments: {
-          'x-dead-letter-routing-key': DEAD_LETTER_QUEUE,
-        },
       });
 
       console.log('Connected to RabbitMQ');

@@ -1,3 +1,4 @@
+import Markdown from 'react-markdown';
 import { useSSE } from '../hooks/useSSE';
 
 interface Task {
@@ -56,7 +57,7 @@ export function TaskDetail({ task }: Props) {
       {displaySummary && (
         <div className="section">
           <h3>Summary</h3>
-          <pre className="content-block">{displaySummary}</pre>
+          <div className="content-block markdown"><Markdown>{displaySummary}</Markdown></div>
         </div>
       )}
 

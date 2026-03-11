@@ -12,3 +12,5 @@ shared/types.js
 shared/types.d.ts
 shared/types.js.map
 shared/types.d.ts.map
+*.pdf
+.claude/

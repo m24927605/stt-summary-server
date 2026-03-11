@@ -22,9 +22,6 @@ export async function startConsumer(): Promise<void> {
       await channel.assertQueue(DEAD_LETTER_QUEUE, { durable: true });
       await channel.assertQueue(QUEUE_NAME, {
         durable: true,
-        arguments: {
-          'x-dead-letter-routing-key': DEAD_LETTER_QUEUE,
-        },
       });
 
       await channel.prefetch(1);
@@ -69,6 +66,7 @@ export async function startConsumer(): Promise<void> {
               where: { id: taskId },
               data: {
                 status: 'failed',
+                step: null,
                 error: `Max retries exceeded. Last error: ${err instanceof Error ? err.message : String(err)}`,
               },
             });
@@ -113,6 +111,7 @@ async function processTask(taskId: string): Promise<void> {
       where: { id: taskId },
       data: {
         status: 'failed',
+        step: null,
         error: `STT failed: ${err instanceof Error ? err.message : String(err)}`,
       },
     });
@@ -137,6 +136,7 @@ async function processTask(taskId: string): Promise<void> {
       where: { id: taskId },
       data: {
         status: 'failed',
+        step: null,
         error: `LLM failed: ${err instanceof Error ? err.message : String(err)}`,
       },
     });
