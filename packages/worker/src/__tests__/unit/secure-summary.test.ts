@@ -142,6 +142,32 @@ describe('secure-summary pipeline', () => {
     );
   });
 
+  it('rejects copy-through output from LLM', async () => {
+    const transcript = 'The team discussed the roadmap for next quarter and agreed on three priorities.';
+    // LLM returns the transcript verbatim
+    mockSummarizeText.mockResolvedValue(transcript);
+
+    await expect(
+      executeSecureSummaryPipeline(prisma, 'task-1', transcript),
+    ).rejects.toThrow('Summary verification failed');
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'task-1' },
+        data: expect.objectContaining({
+          status: 'failed',
+          error: expect.stringContaining('summary_verification_failed'),
+        }),
+      }),
+    );
+
+    // No completed summary should be persisted
+    const completionCall = mockUpdate.mock.calls.find(
+      (call: any) => call[0].data?.status === 'completed',
+    );
+    expect(completionCall).toBeUndefined();
+  });
+
   it('does not store summary when verification fails', async () => {
     mockSummarizeText.mockResolvedValue('');
 

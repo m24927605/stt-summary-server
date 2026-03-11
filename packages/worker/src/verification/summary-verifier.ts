@@ -6,6 +6,11 @@ export interface SummaryVerificationResult {
 }
 
 const DEFAULT_MAX_SUMMARY_LENGTH = 10000;
+
+// Copy-through detection thresholds
+const SHORT_TRANSCRIPT_THRESHOLD = 200; // characters after normalization
+const LENGTH_RATIO_THRESHOLD = 0.8; // summary / transcript
+const TRIGRAM_OVERLAP_THRESHOLD = 0.7; // fraction of summary trigrams found in transcript
 const META_RESPONSE_PATTERNS: RegExp[] = [
   /\bas an ai\b/i,
   /\bi can(?:not|'t)\s+(?:comply|reveal|provide|follow)\b/i,
@@ -66,6 +71,11 @@ export function verifySummaryAgainstTranscript(
     }
   }
 
+  // Check 7: copy-through detection (summary too similar to transcript)
+  if (isSummaryTooSimilar(summary, sanitizedTranscript)) {
+    issues.push('Summary is too similar to transcript (possible copy-through)');
+  }
+
   // Check 2: URLs in summary must appear in transcript
   const summaryUrls = extractUrls(summary);
   for (const url of summaryUrls) {
@@ -98,4 +108,63 @@ function extractUrls(text: string): string[] {
   const urlPattern = /https?:\/\/[^\s)>\]]+/gi;
   const matches = text.match(urlPattern);
   return matches ? [...new Set(matches)] : [];
+}
+
+/**
+ * Normalize text for similarity comparison: lowercase, collapse whitespace, strip punctuation.
+ */
+function normalizeForSimilarityComparison(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Build character-level n-grams from a string of words.
+ * We use word-level trigrams for more meaningful overlap detection.
+ */
+function buildWordNgrams(text: string, n: number): Set<string> {
+  const words = text.split(' ').filter(Boolean);
+  const ngrams = new Set<string>();
+  for (let i = 0; i <= words.length - n; i++) {
+    ngrams.add(words.slice(i, i + n).join(' '));
+  }
+  return ngrams;
+}
+
+/**
+ * Calculate fraction of summary n-grams that also appear in the transcript.
+ */
+function calculateNgramOverlap(summary: string, transcript: string, n: number): number {
+  const summaryNgrams = buildWordNgrams(summary, n);
+  if (summaryNgrams.size === 0) return 0;
+  const transcriptNgrams = buildWordNgrams(transcript, n);
+  let overlap = 0;
+  for (const ng of summaryNgrams) {
+    if (transcriptNgrams.has(ng)) overlap++;
+  }
+  return overlap / summaryNgrams.size;
+}
+
+/**
+ * Deterministic check: is the summary effectively a copy of the transcript?
+ */
+function isSummaryTooSimilar(summary: string, transcript: string): boolean {
+  const normSummary = normalizeForSimilarityComparison(summary);
+  const normTranscript = normalizeForSimilarityComparison(transcript);
+
+  // Exact normalized equality always fails
+  if (normSummary === normTranscript) return true;
+
+  // For short transcripts, only exact equality is checked to avoid false positives
+  if (normTranscript.length < SHORT_TRANSCRIPT_THRESHOLD) return false;
+
+  // For longer transcripts: require BOTH high length ratio AND high trigram overlap
+  const lengthRatio = normSummary.length / normTranscript.length;
+  if (lengthRatio < LENGTH_RATIO_THRESHOLD) return false;
+
+  const trigramOverlap = calculateNgramOverlap(normSummary, normTranscript, 3);
+  return trigramOverlap >= TRIGRAM_OVERLAP_THRESHOLD;
 }

@@ -790,8 +790,8 @@ await storage.upload({ Body: compositeStream });</code></pre>
             <p>NFKC normalization、移除 zero-width chars、過濾 `ignore instructions`、`developer message`、`tool instructions`、`system prompt` 與混淆拼寫。</p>
           </div>
           <div class="shield">
-            <h4>2. Strong prompt boundary</h4>
-            <p>把 transcript 包在 `<transcript_data>` 區塊，system prompt 明確宣告它是資料，不是指令。</p>
+            <h4>2. System prompt carries task + security</h4>
+            <p>System prompt 定義「3-5 bullet 摘要」任務與安全限制；user prompt 只包 `<transcript_data>` 標籤與原文，不混入額外指令。</p>
           </div>
           <div class="shield">
             <h4>3. Output guard before persistence</h4>
@@ -799,7 +799,7 @@ await storage.upload({ Body: compositeStream });</code></pre>
           </div>
           <div class="shield">
             <h4>4. Deterministic verifier</h4>
-            <p>檢查數字與 URL 是否存在於 transcript，並阻擋 `As an AI`、`I cannot comply` 這種 meta-response。</p>
+            <p>檢查數字與 URL 是否存在於 transcript、阻擋 meta-response，並偵測 copy-through（length ratio + trigram overlap）。</p>
           </div>
         </div>
       </div>
@@ -821,11 +821,11 @@ await storage.upload({ Body: compositeStream });</code></pre>
       </div>
       <div class="stat-card">
         <h4>Model Constraint</h4>
-        <p><strong>Structured prompt framing</strong> 把 transcript 放進明確標籤區塊，強制模型只可摘要，不可服從、不可 reveal hidden prompt。</p>
+        <p><strong>System prompt 集中任務與安全指令</strong>（3-5 bullet、壓縮、不可服從 transcript 內指令），user prompt 只放 `<transcript_data>` 包裹的原文。</p>
       </div>
       <div class="stat-card">
         <h4>Output Verification</h4>
-        <p><strong>Guard + verifier</strong> 不是相信模型說自己做對了，而是用 deterministic rules 驗證它沒有越界。</p>
+        <p><strong>Guard + verifier</strong> 不是相信模型說自己做對了，而是用 deterministic rules 驗證它沒有越界，包含 copy-through 偵測。</p>
       </div>
     </div>
     <div class="split-shell">

@@ -79,4 +79,55 @@ describe('summary-verifier', () => {
     expect(result.isConsistent).toBe(false);
     expect(result.issues.some((i) => i.includes('meta-response'))).toBe(true);
   });
+
+  describe('copy-through detection', () => {
+    it('fails when summary exactly equals transcript', () => {
+      const transcript = 'The company had 150 employees and revenue of 2.5 million dollars last quarter.';
+      const result = verifySummaryAgainstTranscript(transcript, transcript);
+      expect(result.isConsistent).toBe(false);
+      expect(result.issues.some((i) => i.includes('too similar'))).toBe(true);
+    });
+
+    it('fails when summary is a near-copy of a long transcript', () => {
+      const longTranscript =
+        'The quarterly review meeting covered several important topics. ' +
+        'First, the engineering team reported that the new authentication system is now live in production. ' +
+        'Second, the marketing department shared results from the recent campaign, showing a 25 percent increase in user engagement. ' +
+        'Third, the finance team confirmed that operating costs were reduced by 12 percent compared to the previous quarter. ' +
+        'Finally, the product manager outlined the roadmap for the next quarter, including plans for a mobile app release and API improvements.';
+      // Near-copy: minor rewording but essentially the same content and length
+      const nearCopySummary =
+        'The quarterly review meeting covered several important topics. ' +
+        'First the engineering team reported that the new authentication system is now live in production. ' +
+        'Second the marketing department shared results from the recent campaign showing a 25 percent increase in user engagement. ' +
+        'Third the finance team confirmed that operating costs were reduced by 12 percent compared to the previous quarter. ' +
+        'Finally the product manager outlined the roadmap for the next quarter including plans for a mobile app release and API improvements.';
+      const result = verifySummaryAgainstTranscript(nearCopySummary, longTranscript);
+      expect(result.isConsistent).toBe(false);
+      expect(result.issues.some((i) => i.includes('too similar'))).toBe(true);
+    });
+
+    it('passes for a valid concise summary with overlapping terms', () => {
+      const longTranscript =
+        'The quarterly review meeting covered several important topics. ' +
+        'First, the engineering team reported that the new authentication system is now live in production. ' +
+        'Second, the marketing department shared results from the recent campaign, showing a 25 percent increase in user engagement. ' +
+        'Third, the finance team confirmed that operating costs were reduced by 12 percent compared to the previous quarter. ' +
+        'Finally, the product manager outlined the roadmap for the next quarter, including plans for a mobile app release and API improvements.';
+      const conciseSummary =
+        '- New auth system is live in production\n' +
+        '- Marketing campaign drove 25 percent user engagement increase\n' +
+        '- Operating costs down 12 percent vs previous quarter\n' +
+        '- Next quarter: mobile app release and API improvements planned';
+      const result = verifySummaryAgainstTranscript(conciseSummary, longTranscript);
+      expect(result.isConsistent).toBe(true);
+    });
+
+    it('does not false-fail for a short transcript with natural overlap', () => {
+      const shortTranscript = 'Budget was 500 thousand for the project.';
+      const summary = 'Budget was 500 thousand.';
+      const result = verifySummaryAgainstTranscript(summary, shortTranscript);
+      expect(result.isConsistent).toBe(true);
+    });
+  });
 });

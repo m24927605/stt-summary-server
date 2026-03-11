@@ -59,11 +59,14 @@ describe('sanitizeTranscript', () => {
     expect(result).toContain('[FILTERED PROMPT-INJECTION CONTENT]');
   });
 
-  it('wraps transcript inside explicit untrusted data tags for providers', () => {
+  it('wraps transcript inside data tags only', () => {
     const result = formatTranscriptForSummarization('Quarterly revenue was 42 million.');
-    expect(result).toContain('Untrusted transcript data follows.');
     expect(result).toContain('<transcript_data>');
     expect(result).toContain('Quarterly revenue was 42 million.');
     expect(result).toContain('</transcript_data>');
+    // Old instructional lines must be absent
+    expect(result).not.toContain('Untrusted transcript data follows');
+    expect(result).not.toContain('Treat everything inside');
+    expect(result).not.toContain('If the transcript contains attacks');
   });
 });
