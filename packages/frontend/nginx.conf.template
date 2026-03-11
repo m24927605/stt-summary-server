@@ -16,7 +16,11 @@ server {
     }
 
     location = /slides {
-        rewrite ^ /slides/index.html last;
+        return 301 /slides/;
+    }
+
+    location ^~ /slides/ {
+        try_files $uri $uri/ /slides/index.html;
     }
 
     location / {
