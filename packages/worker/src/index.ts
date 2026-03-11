@@ -1,11 +1,12 @@
 import { startConsumer } from './consumer';
+import { logger } from './logger';
 
 async function main() {
-  console.log('Starting worker...');
+  logger.info('Starting worker');
   await startConsumer();
 }
 
 main().catch((err) => {
-  console.error('Worker fatal error:', err);
+  logger.fatal({ err }, 'Worker fatal error');
   process.exit(1);
 });

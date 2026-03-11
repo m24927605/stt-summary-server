@@ -282,13 +282,44 @@ curl http://localhost:3000/api/health
 
 ## Security
 
-- **Session Isolation** -- Each browser gets a unique session ID. Tasks are scoped per session so users only see their own tasks.
-- **API Key Authentication** -- All endpoints (except health check and SSE) require `X-API-Key` header. SSE uses query-param session validation instead, since `EventSource` cannot set custom headers. Disabled when `API_KEY` is unset (local development).
-- **Helmet** -- Security headers via `@fastify/helmet` (X-Content-Type-Options, X-Frame-Options, etc.)
-- **Rate Limiting** -- 100 requests/min per IP via `@fastify/rate-limit`
-- **File Validation** -- Mimetype allowlist + magic byte verification for WAV/MP3
-- **Non-root Containers** -- Server and worker run as `node` user inside Docker
-- **Timing-safe Comparison** -- API key validation uses `crypto.timingSafeEqual`
+### Authentication & Session Management
+- **API Key**: Required in production (`API_KEY` env var). Server refuses to start without it when `CORS_ORIGIN` is not localhost.
+- **Server-side sessions**: HttpOnly cookie with UA hash + IP prefix binding and 24h rotation.
+- **CSRF Protection**: Double-submit cookie strategy with timing-safe comparison on all POST requests.
+
+### Input Validation
+- Audio file validation: mimetype allowlist + magic byte verification
+- File size limit: 25MB (enforced by multipart plugin)
+- SSE sessionId: UUID format validation
+- Transcript sanitization: prompt injection patterns filtered before LLM processing
+
+### Security Headers
+- Content-Security-Policy: restrictive `default-src 'self'` policy
+- X-Frame-Options: DENY
+- X-Content-Type-Options: nosniff
+- Referrer-Policy: strict-origin-when-cross-origin
+- Strict-Transport-Security (HTTPS)
+
+### Rate Limiting
+- POST /api/tasks: 10 req/min/IP
+- GET /api/tasks: 30 req/min/IP
+- GET /api/tasks/:id/events: 5 req/min/IP (+ max 5 concurrent SSE connections per session)
+- GET /api/health: exempt
+
+### Logging & Secrets
+- Structured Pino logging (no console.log)
+- Secret redaction in logs (API keys, bearer tokens, session tokens)
+- Error messages sanitized before client exposure
+- Request ID tracing (X-Request-ID header)
+
+### API Resilience
+- OpenAI Whisper timeout: 60s
+- OpenAI Chat timeout: 30s
+- Worker retry: exponential backoff (1s, 2s, 4s) with error classification
+- Dead-letter queue for permanently failed tasks
+
+### Container Security
+- Non-root containers: server and worker run as `node` user inside Docker
 
 ## Environment Variables
 

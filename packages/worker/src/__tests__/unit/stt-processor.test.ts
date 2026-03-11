@@ -50,11 +50,14 @@ describe('transcribeAudio', () => {
   it('calls openai transcriptions.create with correct params', async () => {
     mockTranscriptionsCreate.mockResolvedValue('Hello world');
     await transcribeAudio('uploads/abc.wav');
-    expect(mockTranscriptionsCreate).toHaveBeenCalledWith({
-      file: 'mock-file-object',
-      model: 'whisper-1',
-      response_format: 'text',
-    });
+    expect(mockTranscriptionsCreate).toHaveBeenCalledWith(
+      {
+        file: 'mock-file-object',
+        model: 'whisper-1',
+        response_format: 'text',
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('returns transcription string', async () => {

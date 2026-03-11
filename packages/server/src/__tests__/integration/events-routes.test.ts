@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { randomUUID } from 'crypto';
 import Fastify, { FastifyInstance } from 'fastify';
 import { makeTask } from '../helpers/fixtures';
 
@@ -18,6 +19,11 @@ vi.mock('../../config', () => ({
 
 import { eventRoutes } from '../../routes/events';
 
+// Use unique UUIDs per test to avoid hitting SSE connection limits
+// (inject() doesn't fire request.raw 'close', so connections accumulate)
+const OTHER_SESSION_ID = 'b1ffcd00-ad1c-5fa9-cc7e-7ccace491b22';
+const WRONG_SESSION_ID = 'c200de11-be2d-4fb0-ad8f-8ddbdf502c33';
+
 describe('event routes', () => {
   let app: FastifyInstance;
 
@@ -33,11 +39,12 @@ describe('event routes', () => {
   });
 
   it('returns 404 when task not found', async () => {
+    const sid = randomUUID();
     mockFindUnique.mockResolvedValue(null);
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/tasks/non-existent/events?sessionId=test-session-id',
+      url: `/api/tasks/non-existent/events?sessionId=${sid}`,
     });
 
     expect(response.statusCode).toBe(404);
@@ -45,16 +52,18 @@ describe('event routes', () => {
   });
 
   it('sends completed event for completed task', async () => {
+    const sid = randomUUID();
     const task = makeTask({
       status: 'completed',
       transcript: 'Hello world',
       summary: 'A greeting',
+      sessionId: sid,
     });
     mockFindUnique.mockResolvedValue(task);
 
     const response = await app.inject({
       method: 'GET',
-      url: `/api/tasks/${task.id}/events?sessionId=test-session-id`,
+      url: `/api/tasks/${task.id}/events?sessionId=${sid}`,
     });
 
     expect(response.statusCode).toBe(200);
@@ -65,25 +74,27 @@ describe('event routes', () => {
   });
 
   it('sends failed event for failed task', async () => {
+    const sid = randomUUID();
     const task = makeTask({
       status: 'failed',
       error: 'STT failed: timeout',
+      sessionId: sid,
     });
     mockFindUnique.mockResolvedValue(task);
 
     const response = await app.inject({
       method: 'GET',
-      url: `/api/tasks/${task.id}/events?sessionId=test-session-id`,
+      url: `/api/tasks/${task.id}/events?sessionId=${sid}`,
     });
 
     expect(response.statusCode).toBe(200);
     const body = response.body;
     expect(body).toContain('event: status');
     expect(body).toContain('event: failed');
-    expect(body).toContain('STT failed: timeout');
+    expect(body).toContain('"code":"transcription_failed"');
   });
 
-  it('returns 404 when sessionId query param is missing', async () => {
+  it('returns 400 when sessionId query param is missing', async () => {
     const task = makeTask({ status: 'completed', transcript: 'hi', summary: 'greeting' });
     mockFindUnique.mockResolvedValue(task);
 
@@ -92,17 +103,30 @@ describe('event routes', () => {
       url: `/api/tasks/${task.id}/events`,
     });
 
-    expect(response.statusCode).toBe(404);
-    expect(response.json()).toHaveProperty('error', 'Task not found');
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty('error', 'Invalid or missing sessionId');
   });
 
-  it('returns 404 when sessionId does not match task', async () => {
-    const task = makeTask({ status: 'completed', sessionId: 'owner-session', transcript: 'x', summary: 'y' });
+  it('returns 400 when sessionId is not a valid UUID', async () => {
+    const task = makeTask({ status: 'completed', transcript: 'hi', summary: 'greeting' });
     mockFindUnique.mockResolvedValue(task);
 
     const response = await app.inject({
       method: 'GET',
-      url: `/api/tasks/${task.id}/events?sessionId=wrong-session`,
+      url: `/api/tasks/${task.id}/events?sessionId=not-a-uuid`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toHaveProperty('error', 'Invalid or missing sessionId');
+  });
+
+  it('returns 404 when sessionId does not match task', async () => {
+    const task = makeTask({ status: 'completed', sessionId: OTHER_SESSION_ID, transcript: 'x', summary: 'y' });
+    mockFindUnique.mockResolvedValue(task);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${task.id}/events?sessionId=${WRONG_SESSION_ID}`,
     });
 
     expect(response.statusCode).toBe(404);
@@ -110,9 +134,10 @@ describe('event routes', () => {
   });
 
   it('sends events when sessionId matches', async () => {
+    const sid = randomUUID();
     const task = makeTask({
       status: 'completed',
-      sessionId: 'my-session',
+      sessionId: sid,
       transcript: 'hello',
       summary: 'a greeting',
     });
@@ -120,7 +145,7 @@ describe('event routes', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/api/tasks/${task.id}/events?sessionId=my-session`,
+      url: `/api/tasks/${task.id}/events?sessionId=${sid}`,
     });
 
     expect(response.statusCode).toBe(200);
@@ -137,17 +162,19 @@ describe('event routes', () => {
     });
 
     it('polls and sends completed event when task finishes processing', async () => {
+      const sid = randomUUID();
       mockFindUnique
-        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing' }))
+        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing', sessionId: sid }))
         .mockResolvedValueOnce(makeTask({
           status: 'completed',
           transcript: 'hello',
           summary: 'a greeting',
+          sessionId: sid,
         }));
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
+        url: `/api/tasks/test-task-id-1/events?sessionId=${sid}`,
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -161,16 +188,18 @@ describe('event routes', () => {
     });
 
     it('polls and sends failed event when task fails during processing', async () => {
+      const sid = randomUUID();
       mockFindUnique
-        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing' }))
+        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing', sessionId: sid }))
         .mockResolvedValueOnce(makeTask({
           status: 'failed',
           error: 'OpenAI API timeout',
+          sessionId: sid,
         }));
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
+        url: `/api/tasks/test-task-id-1/events?sessionId=${sid}`,
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -178,22 +207,24 @@ describe('event routes', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toContain('event: failed');
-      expect(response.body).toContain('OpenAI API timeout');
+      expect(response.body).toContain('"code":"unknown_error"');
     });
 
     it('polls and sends status update when step changes', async () => {
+      const sid = randomUUID();
       mockFindUnique
-        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing' }))
-        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'summarizing' }))
+        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing', sessionId: sid }))
+        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'summarizing', sessionId: sid }))
         .mockResolvedValueOnce(makeTask({
           status: 'completed',
           transcript: 'hi',
           summary: 'greeting',
+          sessionId: sid,
         }));
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
+        url: `/api/tasks/test-task-id-1/events?sessionId=${sid}`,
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -206,13 +237,14 @@ describe('event routes', () => {
     });
 
     it('stops polling when task is deleted during processing', async () => {
+      const sid = randomUUID();
       mockFindUnique
-        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing' }))
+        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing', sessionId: sid }))
         .mockResolvedValueOnce(null);
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
+        url: `/api/tasks/test-task-id-1/events?sessionId=${sid}`,
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -224,13 +256,14 @@ describe('event routes', () => {
     });
 
     it('stops polling on database error', async () => {
+      const sid = randomUUID();
       mockFindUnique
-        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing' }))
+        .mockResolvedValueOnce(makeTask({ status: 'processing', step: 'transcribing', sessionId: sid }))
         .mockRejectedValueOnce(new Error('DB connection lost'));
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
+        url: `/api/tasks/test-task-id-1/events?sessionId=${sid}`,
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -242,13 +275,14 @@ describe('event routes', () => {
     });
 
     it('ends stream after 5-minute timeout', async () => {
+      const sid = randomUUID();
       mockFindUnique.mockResolvedValue(
-        makeTask({ status: 'processing', step: 'transcribing' })
+        makeTask({ status: 'processing', step: 'transcribing', sessionId: sid })
       );
 
       const responsePromise = app.inject({
         method: 'GET',
-        url: '/api/tasks/test-task-id-1/events?sessionId=test-session-id',
+        url: `/api/tasks/test-task-id-1/events?sessionId=${sid}`,
       });
 
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);

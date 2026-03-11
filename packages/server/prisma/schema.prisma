@@ -21,5 +21,21 @@ model Task {
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   completedAt      DateTime? @map("completed_at") @db.Timestamptz()
 
+  @@index([sessionId], map: "idx_tasks_session_id")
+  @@index([status], map: "idx_tasks_status")
   @@map("tasks")
+}
+
+model Session {
+  id          String    @id @default(uuid()) @db.Uuid
+  uaHash      String    @map("ua_hash") @db.VarChar(64)
+  ipPrefix    String    @map("ip_prefix") @db.VarChar(48)
+  csrfToken   String    @map("csrf_token") @db.VarChar(64)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz()
+  rotatedTo   String?   @map("rotated_to") @db.Uuid
+  revoked     Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz()
+
+  @@map("sessions")
 }

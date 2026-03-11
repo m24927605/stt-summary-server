@@ -1,6 +1,11 @@
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed';
 export type TaskStep = 'stt' | 'llm' | null;
 
+export interface SanitizedError {
+  code: string;
+  message: string;
+}
+
 export interface TaskResponse {
   id: string;
   status: TaskStatus;
@@ -8,7 +13,7 @@ export interface TaskResponse {
   originalFilename: string;
   transcript: string | null;
   summary: string | null;
-  error: string | null;
+  error: SanitizedError | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -29,7 +34,7 @@ export interface SSEEvent {
     message?: string;
     transcript?: string;
     summary?: string;
-    error?: string;
+    error?: SanitizedError;
   };
 }
 

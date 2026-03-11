@@ -10,24 +10,38 @@ import { connectQueue, disconnectQueue } from './plugins/rabbitmq';
 import { getDb, disconnectDb } from './plugins/db';
 import { config } from './config';
 import { registerAuth } from './middleware/auth';
+import { validateProductionConfig } from './utils/startup-validation';
+import { requestIdPlugin } from './plugins/request-id';
 
 export async function buildApp() {
+  validateProductionConfig(config);
+
   const app = Fastify({
     logger: true,
   });
 
   await app.register(helmet, {
-    contentSecurityPolicy: false, // SPA handles its own CSP
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        connectSrc: ["'self'"],
+        imgSrc: ["'self'", "data:"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   });
 
   await app.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
+    global: false,
   });
 
   await app.register(cors, {
     origin: config.corsOrigin,
-    allowedHeaders: ['Content-Type', 'X-API-Key', 'X-Session-Id'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'X-API-Key', 'X-Session-Id', 'X-CSRF-Token'],
   });
 
   await app.register(multipart, {
@@ -36,13 +50,15 @@ export async function buildApp() {
     },
   });
 
+  await app.register(requestIdPlugin);
+
   registerAuth(app);
 
   // Connect to RabbitMQ
   await connectQueue();
 
   // Routes
-  app.get('/api/health', async (_request, reply) => {
+  app.get('/api/health', { config: { rateLimit: false } }, async (_request, reply) => {
     try {
       const db = getDb();
       await db.$queryRaw`SELECT 1`;

@@ -40,7 +40,8 @@ describe('summarizeText', () => {
           expect.objectContaining({ role: 'system' }),
           expect.objectContaining({ role: 'user', content: 'Some transcript' }),
         ]),
-      })
+      }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 
@@ -52,7 +53,8 @@ describe('summarizeText', () => {
     await summarizeText('transcript');
 
     expect(mockChatCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gpt-4o' })
+      expect.objectContaining({ model: 'gpt-4o' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 

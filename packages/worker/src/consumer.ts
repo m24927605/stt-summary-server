@@ -1,6 +1,7 @@
 import amqplib, { Channel, ConsumeMessage } from 'amqplib';
 import { PrismaClient } from '@prisma/client';
 import { config } from './config';
+import { logger } from './logger';
 import { transcribeAudio } from './processors/stt';
 import { summarizeText } from './processors/llm';
 import { QUEUE_NAME, DEAD_LETTER_QUEUE, MAX_RETRIES } from 'shared/constants';
@@ -26,7 +27,7 @@ export async function startConsumer(): Promise<void> {
 
       await channel.prefetch(1);
 
-      console.log(`Worker listening on queue: ${QUEUE_NAME}`);
+      logger.info('Worker listening on queue: %s', QUEUE_NAME);
 
       channel.consume(QUEUE_NAME, async (msg: ConsumeMessage | null) => {
         if (!msg || !channel) return;
@@ -35,13 +36,13 @@ export async function startConsumer(): Promise<void> {
         const { taskId } = content;
         const retryCount = (msg.properties.headers?.['x-retry-count'] as number) || 0;
 
-        console.log(`Processing task: ${taskId} (attempt ${retryCount + 1})`);
+        logger.info({ taskId, attempt: retryCount + 1 }, 'Processing task');
 
         try {
           await processTask(taskId);
           channel.ack(msg);
         } catch (err) {
-          console.error(`Task ${taskId} failed:`, err);
+          logger.error({ taskId, err }, 'Task failed');
 
           if (retryCount < MAX_RETRIES - 1) {
             channel.ack(msg);
@@ -53,7 +54,7 @@ export async function startConsumer(): Promise<void> {
                 headers: { 'x-retry-count': retryCount + 1 },
               }
             );
-            console.log(`Task ${taskId} re-queued (attempt ${retryCount + 2})`);
+            logger.info({ taskId, attempt: retryCount + 2 }, 'Task re-queued');
           } else {
             channel.ack(msg);
             channel.sendToQueue(
@@ -77,7 +78,7 @@ export async function startConsumer(): Promise<void> {
       break;
     } catch (err) {
       retries++;
-      console.log(`RabbitMQ connection attempt ${retries}/${maxRetries} failed, retrying in 3s...`);
+      logger.warn({ attempt: retries, maxRetries }, 'RabbitMQ connection failed, retrying');
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }
   }
@@ -87,7 +88,7 @@ export async function startConsumer(): Promise<void> {
   }
 
   process.on('SIGINT', async () => {
-    console.log('Worker shutting down...');
+    logger.info('Worker shutting down');
     if (channel) await channel.close();
     if (connection) await connection.close();
     await prisma.$disconnect();
@@ -153,5 +154,5 @@ export async function processTask(taskId: string): Promise<void> {
     },
   });
 
-  console.log(`Task ${taskId} completed successfully`);
+  logger.info({ taskId }, 'Task completed');
 }

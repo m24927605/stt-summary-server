@@ -1,5 +1,6 @@
 import amqplib, { Channel, ChannelModel } from 'amqplib';
 import { config } from '../config';
+import { logger } from '../logger';
 import { QUEUE_NAME, DEAD_LETTER_QUEUE } from 'shared/constants';
 import { QueueMessage } from 'shared/types';
 
@@ -20,11 +21,11 @@ export async function connectQueue(): Promise<void> {
         durable: true,
       });
 
-      console.log('Connected to RabbitMQ');
+      logger.info('Connected to RabbitMQ');
       return;
     } catch (err) {
       retries++;
-      console.log(`RabbitMQ connection attempt ${retries}/${maxRetries} failed, retrying in 3s...`);
+      logger.warn({ attempt: retries, maxRetries }, 'RabbitMQ connection failed, retrying');
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }
   }

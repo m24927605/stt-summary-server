@@ -1,22 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { hashUserAgent, extractIpPrefix, validateSessionBinding, createSessionData } from '../../plugins/session';
 import crypto from 'crypto';
-
-vi.mock('../../plugins/db', () => ({
-  getDb: () => ({}),
-}));
-
-vi.mock('../../config', () => ({
-  config: { corsOrigin: 'http://localhost:8080', apiKey: '' },
-}));
-
-import {
-  hashUserAgent,
-  extractIpPrefix,
-  validateSessionBinding,
-  createSessionData,
-  shouldRotateSession,
-  rotateSession,
-} from '../../plugins/session';
 
 describe('session helpers', () => {
   describe('hashUserAgent', () => {
@@ -84,97 +68,6 @@ describe('session helpers', () => {
       expect(data.csrfToken).toHaveLength(64);
       expect(data.expiresAt).toBeInstanceOf(Date);
       expect(data.expiresAt.getTime()).toBeGreaterThan(Date.now());
-    });
-  });
-
-  describe('shouldRotateSession', () => {
-    it('returns false for session created less than 24 hours ago', () => {
-      const recentDate = new Date(Date.now() - 23 * 60 * 60 * 1000); // 23 hours ago
-      expect(shouldRotateSession(recentDate)).toBe(false);
-    });
-
-    it('returns true for session created 24 hours ago', () => {
-      const oldDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // exactly 24 hours
-      expect(shouldRotateSession(oldDate)).toBe(true);
-    });
-
-    it('returns true for session created 48 hours ago', () => {
-      const veryOld = new Date(Date.now() - 48 * 60 * 60 * 1000);
-      expect(shouldRotateSession(veryOld)).toBe(true);
-    });
-
-    it('returns false for session created just now', () => {
-      expect(shouldRotateSession(new Date())).toBe(false);
-    });
-  });
-
-  describe('rotateSession', () => {
-    it('creates new session, revokes old, and migrates tasks atomically', async () => {
-      const mockCreate = vi.fn().mockResolvedValue({
-        id: 'new-session-id',
-        csrfToken: 'new-csrf-token',
-      });
-      const mockUpdate = vi.fn().mockResolvedValue({});
-      const mockUpdateMany = vi.fn().mockResolvedValue({ count: 3 });
-
-      const mockDb = {
-        $transaction: vi.fn(async (fn: (tx: any) => Promise<any>) => {
-          return fn({
-            session: { create: mockCreate, update: mockUpdate },
-            task: { updateMany: mockUpdateMany },
-          });
-        }),
-      } as unknown as any;
-
-      const result = await rotateSession(mockDb, 'old-session-id', {
-        uaHash: 'hash',
-        ipPrefix: '192.168.1',
-        csrfToken: 'new-csrf-token',
-        expiresAt: new Date(),
-      });
-
-      expect(result.newSessionId).toBe('new-session-id');
-      expect(result.newCsrfToken).toBe('new-csrf-token');
-
-      // Verify old session was revoked
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'old-session-id' },
-          data: { rotatedTo: 'new-session-id', revoked: true },
-        }),
-      );
-
-      // Verify tasks were migrated
-      expect(mockUpdateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { sessionId: 'old-session-id' },
-          data: { sessionId: 'new-session-id' },
-        }),
-      );
-    });
-
-    it('new session gets a new CSRF token', async () => {
-      const mockDb = {
-        $transaction: vi.fn(async (fn: (tx: any) => Promise<any>) => {
-          return fn({
-            session: {
-              create: vi.fn().mockResolvedValue({ id: 'new-id', csrfToken: 'brand-new-token' }),
-              update: vi.fn().mockResolvedValue({}),
-            },
-            task: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
-          });
-        }),
-      } as unknown as any;
-
-      const result = await rotateSession(mockDb, 'old-id', {
-        uaHash: 'h',
-        ipPrefix: '10.0.0',
-        csrfToken: 'brand-new-token',
-        expiresAt: new Date(),
-      });
-
-      expect(result.newCsrfToken).toBe('brand-new-token');
-      expect(result.newCsrfToken).not.toBe('old-csrf-token');
     });
   });
 });

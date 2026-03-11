@@ -4,11 +4,12 @@ import { getDb } from '../plugins/db';
 import { publishTask } from '../plugins/rabbitmq';
 import { saveFileStream } from '../services/storage';
 import { isValidAudioMagicBytes } from '../utils/audio-validation';
+import { sanitizeTaskError } from '../utils/error-sanitizer';
 import { ALLOWED_MIMETYPES } from 'shared/constants';
 
 export async function taskRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/tasks — Upload audio and create task
-  app.post('/api/tasks', async (request, reply) => {
+  app.post('/api/tasks', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const data = await request.file();
 
     if (!data) {
@@ -57,7 +58,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // GET /api/tasks — List tasks for current session
-  app.get('/api/tasks', async (request, reply) => {
+  app.get('/api/tasks', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const sessionId = (request.headers['x-session-id'] as string) || '';
     if (!sessionId) {
       return reply.status(400).send({ error: 'Missing X-Session-Id header' });
@@ -77,7 +78,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
         originalFilename: t.originalFilename,
         transcript: t.transcript,
         summary: t.summary,
-        error: t.error,
+        error: t.error ? sanitizeTaskError(t.error) : null,
         createdAt: t.createdAt.toISOString(),
         updatedAt: t.updatedAt.toISOString(),
         completedAt: t.completedAt?.toISOString() ?? null,
@@ -86,7 +87,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // GET /api/tasks/:id — Get single task (scoped to session)
-  app.get<{ Params: { id: string } }>('/api/tasks/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/tasks/:id', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const sessionId = (request.headers['x-session-id'] as string) || '';
     if (!sessionId) {
       return reply.status(400).send({ error: 'Missing X-Session-Id header' });
@@ -108,7 +109,7 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       originalFilename: task.originalFilename,
       transcript: task.transcript,
       summary: task.summary,
-      error: task.error,
+      error: task.error ? sanitizeTaskError(task.error) : null,
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
       completedAt: task.completedAt?.toISOString() ?? null,
