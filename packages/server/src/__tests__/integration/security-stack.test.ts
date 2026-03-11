@@ -361,6 +361,251 @@ describe('security stack integration', () => {
     await app.close();
   });
 
+  // --- Rotated session recovery tests ---
+
+  it('GET /api/tasks/session with revoked rotated cookie recovers to active session', async () => {
+    const activeSessionData = makeDbSession({
+      id: 'active-sess',
+      csrfToken: 'recovered-csrf-token',
+    });
+
+    mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
+      if (args.where.id === 'revoked-rotated') {
+        return Promise.resolve(makeDbSession({
+          id: 'revoked-rotated',
+          revoked: true,
+          rotatedTo: 'active-sess',
+        }));
+      }
+      if (args.where.id === 'active-sess') {
+        return Promise.resolve(activeSessionData);
+      }
+      return Promise.resolve(null);
+    });
+
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/session',
+      headers: { cookie: 'stt_session=revoked-rotated' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveProperty('csrfToken', 'recovered-csrf-token');
+
+    const sttCookie = res.cookies.find((c: { name: string }) => c.name === 'stt_session');
+    expect(sttCookie).toBeDefined();
+    expect(sttCookie!.value).toBe('active-sess');
+
+    const csrfCookie = res.cookies.find((c: { name: string }) => c.name === 'csrf_token');
+    expect(csrfCookie).toBeDefined();
+    expect(csrfCookie!.value).toBe('recovered-csrf-token');
+
+    await app.close();
+  });
+
+  it('GET /api/tasks/session with revoked rotated cookie and expired target returns 401', async () => {
+    mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
+      if (args.where.id === 'revoked-exp') {
+        return Promise.resolve(makeDbSession({
+          id: 'revoked-exp',
+          revoked: true,
+          rotatedTo: 'expired-target',
+        }));
+      }
+      if (args.where.id === 'expired-target') {
+        return Promise.resolve(makeDbSession({
+          id: 'expired-target',
+          expiresAt: new Date(Date.now() - 1000),
+        }));
+      }
+      return Promise.resolve(null);
+    });
+
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/session',
+      headers: { cookie: 'stt_session=revoked-exp' },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe('Session revoked');
+    const clearedCookie = res.cookies.find((c: { name: string }) => c.name === 'stt_session');
+    expect(clearedCookie).toBeDefined();
+    await app.close();
+  });
+
+  it('GET /api/tasks/session with revoked rotated cookie and binding mismatch returns 401', async () => {
+    mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
+      if (args.where.id === 'revoked-bind') {
+        return Promise.resolve(makeDbSession({
+          id: 'revoked-bind',
+          revoked: true,
+          rotatedTo: 'mismatch-target',
+        }));
+      }
+      if (args.where.id === 'mismatch-target') {
+        return Promise.resolve(makeDbSession({
+          id: 'mismatch-target',
+          uaHash: 'completely-different-ua-hash',
+          ipPrefix: '10.0.0',
+        }));
+      }
+      return Promise.resolve(null);
+    });
+
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/session',
+      headers: { cookie: 'stt_session=revoked-bind' },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe('Session binding mismatch');
+    const clearedCookie = res.cookies.find((c: { name: string }) => c.name === 'stt_session');
+    expect(clearedCookie).toBeDefined();
+    await app.close();
+  });
+
+  it('POST /api/tasks with revoked rotated cookie still returns 401', async () => {
+    mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
+      if (args.where.id === 'revoked-post') {
+        return Promise.resolve(makeDbSession({
+          id: 'revoked-post',
+          revoked: true,
+          rotatedTo: 'active-target',
+        }));
+      }
+      if (args.where.id === 'active-target') {
+        return Promise.resolve(makeDbSession({ id: 'active-target' }));
+      }
+      return Promise.resolve(null);
+    });
+
+    const app = await buildApp();
+
+    const wavBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    const body =
+      `------boundary\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="test.wav"\r\n` +
+      `Content-Type: audio/wav\r\n\r\n` +
+      wavBuffer.toString('binary') +
+      `\r\n------boundary--\r\n`;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      headers: {
+        'content-type': 'multipart/form-data; boundary=----boundary',
+        cookie: 'stt_session=revoked-post',
+        'x-csrf-token': CSRF_TOKEN,
+        origin: 'http://localhost:8080',
+      },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe('Session revoked');
+    const clearedCookie = res.cookies.find((c: { name: string }) => c.name === 'stt_session');
+    expect(clearedCookie).toBeDefined();
+    await app.close();
+  });
+
+  it('GET /api/tasks with revoked rotated cookie still returns 401 (not bootstrap)', async () => {
+    mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
+      if (args.where.id === 'revoked-list') {
+        return Promise.resolve(makeDbSession({
+          id: 'revoked-list',
+          revoked: true,
+          rotatedTo: 'active-list-target',
+        }));
+      }
+      if (args.where.id === 'active-list-target') {
+        return Promise.resolve(makeDbSession({ id: 'active-list-target' }));
+      }
+      return Promise.resolve(null);
+    });
+
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+      headers: { cookie: 'stt_session=revoked-list' },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe('Session revoked');
+    const clearedCookie = res.cookies.find((c: { name: string }) => c.name === 'stt_session');
+    expect(clearedCookie).toBeDefined();
+    await app.close();
+  });
+
+  it('recovered bootstrap session can see tasks from the existing rotation chain', async () => {
+    const activeSessionData = makeDbSession({
+      id: 'active-history-sess',
+      csrfToken: 'history-csrf-token',
+    });
+
+    mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
+      if (args.where.id === 'revoked-history') {
+        return Promise.resolve(makeDbSession({
+          id: 'revoked-history',
+          revoked: true,
+          rotatedTo: 'active-history-sess',
+        }));
+      }
+      if (args.where.id === 'active-history-sess') {
+        return Promise.resolve(activeSessionData);
+      }
+      return Promise.resolve(null);
+    });
+
+    mockTaskFindMany.mockResolvedValue([
+      {
+        id: 'task-from-chain',
+        status: 'completed',
+        originalFilename: 'existing.wav',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        completedAt: new Date(),
+      },
+    ]);
+
+    const app = await buildApp();
+
+    const bootstrapRes = await app.inject({
+      method: 'GET',
+      url: '/api/tasks/session',
+      headers: { cookie: 'stt_session=revoked-history' },
+    });
+
+    expect(bootstrapRes.statusCode).toBe(200);
+    const recoveredCookie = bootstrapRes.cookies.find((c: { name: string }) => c.name === 'stt_session');
+    expect(recoveredCookie).toBeDefined();
+    expect(recoveredCookie!.value).toBe('active-history-sess');
+
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+      headers: { cookie: `stt_session=${recoveredCookie!.value}` },
+    });
+
+    expect(listRes.statusCode).toBe(200);
+    expect(listRes.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'task-from-chain' }),
+      ]),
+    );
+
+    await app.close();
+  });
+
   it('expired session cookie is rejected', async () => {
     mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
       if (args.where.id === 'expired-session') {
