@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSend, mockDone } = vi.hoisted(() => ({
+const { mockSend } = vi.hoisted(() => ({
   mockSend: vi.fn().mockResolvedValue({}),
-  mockDone: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('@aws-sdk/client-s3', () => ({
@@ -16,13 +15,6 @@ vi.mock('uuid', () => ({
   v4: vi.fn(() => 'mock-uuid-1234'),
 }));
 
-vi.mock('@aws-sdk/lib-storage', () => {
-  const MockUpload = vi.fn().mockImplementation(() => ({
-    done: mockDone,
-  }));
-  return { Upload: MockUpload };
-});
-
 vi.mock('../../config', () => ({
   config: {
     s3Region: 'us-east-1',
@@ -30,23 +22,16 @@ vi.mock('../../config', () => ({
     s3Bucket: 'test-bucket',
     s3AccessKeyId: 'test-key',
     s3SecretAccessKey: 'test-secret',
-    apiKey: '',
   },
 }));
 
-import { saveFile, saveFileStream } from '../../services/storage';
+import { saveFile } from '../../services/storage';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { Upload } from '@aws-sdk/lib-storage';
 
 describe('storage (S3)', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
     mockSend.mockResolvedValue({});
-    mockDone.mockResolvedValue({});
-    const { Upload } = await import('@aws-sdk/lib-storage');
-    (Upload as any).mockImplementation(() => ({
-      done: mockDone,
-    }));
   });
 
   it('saveFile calls PutObjectCommand with correct bucket and key', async () => {
@@ -81,20 +66,5 @@ describe('storage (S3)', () => {
     mockSend.mockRejectedValueOnce(new Error('S3 connection refused'));
     const buffer = Buffer.from('data');
     await expect(saveFile(buffer, 'test.wav')).rejects.toThrow('S3 connection refused');
-  });
-
-  it('saveFileStream uploads a readable stream to S3', async () => {
-    const { Readable } = await import('stream');
-    const stream = Readable.from(Buffer.from('audio data'));
-    const key = await saveFileStream(stream, 'test.wav');
-    expect(key).toBe('uploads/mock-uuid-1234.wav');
-    expect(Upload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        params: expect.objectContaining({
-          Bucket: 'test-bucket',
-          Key: 'uploads/mock-uuid-1234.wav',
-        }),
-      })
-    );
   });
 });

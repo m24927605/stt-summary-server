@@ -216,13 +216,3 @@ variable "gpt_model" {
   type        = string
   default     = "gpt-4o"
 }
-
-# ──────────────────────────────────────────
-# API Authentication
-# ──────────────────────────────────────────
-
-variable "api_key" {
-  description = "API key for authenticating requests"
-  type        = string
-  sensitive   = true
-}

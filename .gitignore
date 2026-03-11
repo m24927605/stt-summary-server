@@ -14,3 +14,9 @@ shared/types.js.map
 shared/types.d.ts.map
 *.pdf
 .claude/
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/terraform.tfvars

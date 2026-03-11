@@ -36,7 +36,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
         aws_secretsmanager_secret.database_url.arn,
         aws_secretsmanager_secret.rabbitmq_url.arn,
         aws_secretsmanager_secret.openai_api_key.arn,
-        aws_secretsmanager_secret.api_key.arn,
+        aws_secretsmanager_secret.s3_credentials.arn,
         aws_secretsmanager_secret.ghcr_credentials.arn,
       ]
     }]
@@ -44,13 +44,12 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
 }
 
 # ──────────────────────────────────────────
-# Server Task Role
-# Runtime permissions for the server container
-# Server only needs to upload files to S3
+# ECS Task Role
+# Used by application containers at runtime
 # ──────────────────────────────────────────
 
-resource "aws_iam_role" "ecs_task_server" {
-  name = "${var.project_name}-ecs-task-server"
+resource "aws_iam_role" "ecs_task" {
+  name = "${var.project_name}-ecs-task"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -61,53 +60,21 @@ resource "aws_iam_role" "ecs_task_server" {
     }]
   })
 
-  tags = { Name = "${var.project_name}-ecs-task-server" }
+  tags = { Name = "${var.project_name}-ecs-task" }
 }
 
-resource "aws_iam_role_policy" "ecs_task_server_s3" {
-  name = "s3-put-only"
-  role = aws_iam_role.ecs_task_server.id
+resource "aws_iam_role_policy" "ecs_task_s3" {
+  name = "s3-access"
+  role = aws_iam_role.ecs_task.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:PutObject"]
-      Resource = "${aws_s3_bucket.uploads.arn}/*"
-    }]
-  })
-}
-
-# ──────────────────────────────────────────
-# Worker Task Role
-# Runtime permissions for the worker container
-# Worker only needs to download files from S3
-# ──────────────────────────────────────────
-
-resource "aws_iam_role" "ecs_task_worker" {
-  name = "${var.project_name}-ecs-task-worker"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
-    }]
-  })
-
-  tags = { Name = "${var.project_name}-ecs-task-worker" }
-}
-
-resource "aws_iam_role_policy" "ecs_task_worker_s3" {
-  name = "s3-get-only"
-  role = aws_iam_role.ecs_task_worker.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:GetObject"]
+      Effect = "Allow"
+      Action = [
+        "s3:PutObject",
+        "s3:GetObject",
+      ]
       Resource = "${aws_s3_bucket.uploads.arn}/*"
     }]
   })

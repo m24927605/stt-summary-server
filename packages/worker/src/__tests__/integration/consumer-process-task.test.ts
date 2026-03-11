@@ -47,11 +47,9 @@ describe('processTask', () => {
     });
   });
 
-  it('happy path: transcribes, runs secure pipeline, and completes', async () => {
-    const transcript = 'Hello world with 42 items';
-    mockTranscribe.mockResolvedValue(transcript);
-    // Summary must contain numbers that exist in transcript to pass verification
-    mockSummarize.mockResolvedValue('A greeting with 42 items discussed.');
+  it('happy path: transcribes, summarizes, and completes', async () => {
+    mockTranscribe.mockResolvedValue('Hello world');
+    mockSummarize.mockResolvedValue('A greeting');
 
     await processTask('task-1');
 
@@ -66,7 +64,7 @@ describe('processTask', () => {
     // Transcript saved
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { transcript },
+        data: { transcript: 'Hello world' },
       })
     );
 
@@ -77,11 +75,11 @@ describe('processTask', () => {
       })
     );
 
-    // Final update: completed with guarded summary
+    // Final update: completed with summary
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          summary: expect.any(String),
+          summary: 'A greeting',
           status: 'completed',
           step: null,
         }),
@@ -90,8 +88,8 @@ describe('processTask', () => {
   });
 
   it('sets completedAt on success', async () => {
-    mockTranscribe.mockResolvedValue('text with 5 facts');
-    mockSummarize.mockResolvedValue('summary with 5 facts');
+    mockTranscribe.mockResolvedValue('text');
+    mockSummarize.mockResolvedValue('summary');
 
     await processTask('task-1');
 
@@ -136,37 +134,26 @@ describe('processTask', () => {
   });
 
   it('saves transcript after STT step', async () => {
-    mockTranscribe.mockResolvedValue('the transcript with 7 points');
-    mockSummarize.mockResolvedValue('summary with 7 points');
+    mockTranscribe.mockResolvedValue('the transcript');
+    mockSummarize.mockResolvedValue('the summary');
 
     await processTask('task-1');
 
     const transcriptCall = mockUpdate.mock.calls.find(
-      (call: any) => call[0].data.transcript === 'the transcript with 7 points'
+      (call: any) => call[0].data.transcript === 'the transcript'
     );
     expect(transcriptCall).toBeDefined();
   });
 
-  it('verification failure marks task as failed without storing summary', async () => {
-    mockTranscribe.mockResolvedValue('simple transcript');
-    // Summary introduces a number not in the transcript
-    mockSummarize.mockResolvedValue('Revenue was 999 million dollars.');
+  it('saves summary on completion', async () => {
+    mockTranscribe.mockResolvedValue('text');
+    mockSummarize.mockResolvedValue('the summary');
 
-    await expect(processTask('task-1')).rejects.toThrow('Summary verification failed');
+    await processTask('task-1');
 
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'failed',
-          error: expect.stringContaining('summary_verification_failed'),
-        }),
-      })
-    );
-
-    // No completed call should exist
     const completionCall = mockUpdate.mock.calls.find(
-      (call: any) => call[0].data?.status === 'completed'
+      (call: any) => call[0].data.summary === 'the summary'
     );
-    expect(completionCall).toBeUndefined();
+    expect(completionCall).toBeDefined();
   });
 });

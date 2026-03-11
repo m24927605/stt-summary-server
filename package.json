@@ -4,5 +4,8 @@
   "workspaces": [
     "packages/*",
     "shared"
-  ]
+  ],
+  "scripts": {
+    "test": "npm run test --workspace=packages/server && npm run test --workspace=packages/worker"
+  }
 }

@@ -38,16 +38,19 @@ resource "aws_secretsmanager_secret_version" "openai_api_key" {
   secret_string = var.openai_api_key
 }
 
-# API Key (for authenticating API requests)
-resource "aws_secretsmanager_secret" "api_key" {
-  name = "${var.project_name}/api-key"
+# S3 Credentials (IAM user access key)
+resource "aws_secretsmanager_secret" "s3_credentials" {
+  name = "${var.project_name}/s3-credentials"
 
-  tags = { Name = "${var.project_name}-api-key" }
+  tags = { Name = "${var.project_name}-s3-credentials" }
 }
 
-resource "aws_secretsmanager_secret_version" "api_key" {
-  secret_id     = aws_secretsmanager_secret.api_key.id
-  secret_string = var.api_key
+resource "aws_secretsmanager_secret_version" "s3_credentials" {
+  secret_id = aws_secretsmanager_secret.s3_credentials.id
+  secret_string = jsonencode({
+    access_key_id     = aws_iam_access_key.s3_user.id
+    secret_access_key = aws_iam_access_key.s3_user.secret
+  })
 }
 
 # GHCR Credentials (for pulling private Docker images)

@@ -4,7 +4,6 @@ export function makeTask(overrides: Record<string, unknown> = {}) {
     status: 'pending',
     step: null,
     originalFilename: 'recording.wav',
-    sessionId: 'test-session-id',
     filePath: './uploads/abc-123.wav',
     transcript: null,
     summary: null,

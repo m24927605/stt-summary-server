@@ -32,7 +32,7 @@ resource "aws_ecs_task_definition" "server" {
   cpu                      = var.server_cpu
   memory                   = var.server_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task_server.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
 
   container_definitions = jsonencode([{
     name  = "server"
@@ -58,7 +58,8 @@ resource "aws_ecs_task_definition" "server" {
     secrets = [
       { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
       { name = "RABBITMQ_URL", valueFrom = aws_secretsmanager_secret.rabbitmq_url.arn },
-      { name = "API_KEY", valueFrom = aws_secretsmanager_secret.api_key.arn },
+      { name = "S3_ACCESS_KEY_ID", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:access_key_id::" },
+      { name = "S3_SECRET_ACCESS_KEY", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:secret_access_key::" },
     ]
 
     logConfiguration = {
@@ -87,7 +88,7 @@ resource "aws_ecs_task_definition" "worker" {
   cpu                      = var.worker_cpu
   memory                   = var.worker_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task_worker.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
 
   container_definitions = jsonencode([{
     name  = "worker"
@@ -109,6 +110,8 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
       { name = "RABBITMQ_URL", valueFrom = aws_secretsmanager_secret.rabbitmq_url.arn },
       { name = "OPENAI_API_KEY", valueFrom = aws_secretsmanager_secret.openai_api_key.arn },
+      { name = "S3_ACCESS_KEY_ID", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:access_key_id::" },
+      { name = "S3_SECRET_ACCESS_KEY", valueFrom = "${aws_secretsmanager_secret.s3_credentials.arn}:secret_access_key::" },
     ]
 
     logConfiguration = {

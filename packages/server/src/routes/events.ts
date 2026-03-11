@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { getDb } from '../plugins/db';
 import { config } from '../config';
+import { getStepMessage } from '../utils/step-message';
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/api/tasks/:id/events', async (request, reply) => {
@@ -107,13 +108,4 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
       if (!closed) reply.raw.end();
     }, 5 * 60 * 1000);
   });
-}
-
-function getStepMessage(status: string, step: string | null): string {
-  if (status === 'pending') return 'Task queued, waiting to be processed...';
-  if (status === 'processing' && step === 'stt') return 'Transcribing audio...';
-  if (status === 'processing' && step === 'llm') return 'Generating summary...';
-  if (status === 'completed') return 'Task completed';
-  if (status === 'failed') return 'Task failed';
-  return 'Processing...';
 }
