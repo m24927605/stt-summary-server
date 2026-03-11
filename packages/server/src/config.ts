@@ -7,6 +7,7 @@ export const config = {
   uploadDir: env.UPLOAD_DIR || './uploads',
   openaiApiKey: env.OPENAI_API_KEY || '',
   corsOrigin: env.CORS_ORIGIN || 'http://localhost:8080',
+  apiKey: env.API_KEY || '',
   s3Endpoint: env.S3_ENDPOINT || '',
   s3Bucket: env.S3_BUCKET || 'stt-uploads',
   s3Region: env.S3_REGION || 'auto',

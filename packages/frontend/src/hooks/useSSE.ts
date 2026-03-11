@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getSessionId } from '../api';
 
 interface SSEData {
   status: string;
@@ -20,7 +21,7 @@ export function useSSE(taskId: string | null) {
       return;
     }
 
-    const es = new EventSource(`/api/tasks/${taskId}/events`);
+    const es = new EventSource(`/api/tasks/${taskId}/events?sessionId=${encodeURIComponent(getSessionId())}`);
     eventSourceRef.current = es;
 
     es.onopen = () => setIsConnected(true);

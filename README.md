@@ -2,6 +2,8 @@
 
 A full-stack speech-to-text summarization service that accepts audio files, transcribes them via OpenAI Whisper, generates summaries via GPT, and streams real-time progress to a React frontend using Server-Sent Events (SSE).
 
+**Live Demo:** [https://voicebrief.xyz](https://voicebrief.xyz)
+
 ## Architecture
 
 The system follows a producer-consumer architecture with five main components:
@@ -9,6 +11,7 @@ The system follows a producer-consumer architecture with five main components:
 - **Fastify API Server** -- Handles file uploads, REST endpoints, and SSE streaming
 - **RabbitMQ Worker** -- Asynchronously processes tasks (transcription + summarization)
 - **PostgreSQL** -- Stores task state, transcripts, and summaries (via Prisma ORM)
+- **MinIO (S3-compatible)** -- Stores uploaded audio files used by the worker
 - **React Frontend** -- Single-page app for uploading audio and viewing results in real-time
 - **Docker Compose** -- Orchestrates all services with health checks and shared volumes
 
@@ -55,8 +58,40 @@ Once running, access:
 | Frontend | [http://localhost:8080](http://localhost:8080) |
 | API Server | [http://localhost:3000](http://localhost:3000) |
 | RabbitMQ Management | [http://localhost:15672](http://localhost:15672) (guest/guest) |
+| MinIO Console | [http://localhost:9001](http://localhost:9001) (minioadmin/minioadmin) |
 
 ## API Documentation
+
+### Authentication
+
+All API endpoints (except `/api/health`) support two headers:
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `X-Session-Id` | Yes | UUID identifying the browser session. Tasks are scoped per session. |
+| `X-API-Key` | Conditional | Required when `API_KEY` env var is set. Disabled in local development. |
+
+```bash
+curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
+```
+
+The frontend automatically generates and persists a session ID in `localStorage`.
+
+**Error** -- `400 Bad Request` (missing session ID):
+
+```json
+{
+  "error": "Missing X-Session-Id header"
+}
+```
+
+**Error** -- `401 Unauthorized` (missing or invalid API key):
+
+```json
+{
+  "error": "Missing or invalid API key"
+}
+```
 
 ### `POST /api/tasks`
 
@@ -67,6 +102,8 @@ Upload an audio file for transcription and summarization.
 
 ```bash
 curl -X POST http://localhost:3000/api/tasks \
+  -H "X-Session-Id: my-session-id" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -F "file=@recording.wav"
 ```
 
@@ -102,10 +139,10 @@ curl -X POST http://localhost:3000/api/tasks \
 List all tasks, ordered by creation date (newest first).
 
 ```bash
-curl http://localhost:3000/api/tasks
+curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks
 ```
 
-**Success** — `200 OK`:
+**Success** -- `200 OK`:
 
 ```json
 [
@@ -141,7 +178,7 @@ curl http://localhost:3000/api/tasks
 Get a single task by ID, including transcript and summary.
 
 ```bash
-curl http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+curl -H "X-Session-Id: my-session-id" -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
 **Success** — `200 OK`:
@@ -191,7 +228,7 @@ curl http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 Server-Sent Events stream for real-time task progress.
 
 ```bash
-curl -N http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/events
+curl -N "http://localhost:3000/api/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/events?sessionId=my-session-id"
 ```
 
 Events emitted:
@@ -237,9 +274,21 @@ curl http://localhost:3000/api/health
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "uptime": 123.456,
+  "timestamp": "2026-03-02T12:00:00.000Z"
 }
 ```
+
+## Security
+
+- **Session Isolation** -- Each browser gets a unique session ID. Tasks are scoped per session so users only see their own tasks.
+- **API Key Authentication** -- All endpoints (except health check and SSE) require `X-API-Key` header. SSE uses query-param session validation instead, since `EventSource` cannot set custom headers. Disabled when `API_KEY` is unset (local development).
+- **Helmet** -- Security headers via `@fastify/helmet` (X-Content-Type-Options, X-Frame-Options, etc.)
+- **Rate Limiting** -- 100 requests/min per IP via `@fastify/rate-limit`
+- **File Validation** -- Mimetype allowlist + magic byte verification for WAV/MP3
+- **Non-root Containers** -- Server and worker run as `node` user inside Docker
+- **Timing-safe Comparison** -- API key validation uses `crypto.timingSafeEqual`
 
 ## Environment Variables
 
@@ -248,13 +297,18 @@ All variables are configured in `.env` (copy from `.env.example`):
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OPENAI_API_KEY` | OpenAI API key (required) | -- |
+| `API_KEY` | API key for endpoint authentication (optional, disabled if unset) | -- |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@postgres:5432/stt_summary` |
 | `POSTGRES_USER` | PostgreSQL username | `postgres` |
 | `POSTGRES_PASSWORD` | PostgreSQL password | `postgres` |
 | `POSTGRES_DB` | PostgreSQL database name | `stt_summary` |
 | `RABBITMQ_URL` | RabbitMQ connection string | `amqp://guest:guest@rabbitmq:5672` |
 | `SERVER_PORT` | API server port | `3000` |
-| `UPLOAD_DIR` | Directory for uploaded audio files | `/app/uploads` |
+| `S3_ENDPOINT` | S3 endpoint URL (MinIO in local Docker) | `http://localhost:9000` |
+| `S3_BUCKET` | Bucket name for uploaded audio | `stt-uploads` |
+| `S3_REGION` | S3 region | `auto` |
+| `S3_ACCESS_KEY_ID` | S3 access key | `minioadmin` |
+| `S3_SECRET_ACCESS_KEY` | S3 secret key | `minioadmin` |
 | `WHISPER_MODEL` | OpenAI Whisper model name | `whisper-1` |
 | `GPT_MODEL` | OpenAI GPT model name | `gpt-4o` |
 | `CORS_ORIGIN` | Allowed CORS origin for API requests | `http://localhost:8080` |
@@ -272,7 +326,10 @@ cp .env.example .env
 # Edit .env:
 #   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/stt_summary
 #   RABBITMQ_URL=amqp://guest:guest@localhost:5672
-#   UPLOAD_DIR=./uploads
+#   S3_ENDPOINT=http://localhost:9000
+#   S3_BUCKET=stt-uploads
+#   S3_ACCESS_KEY_ID=minioadmin
+#   S3_SECRET_ACCESS_KEY=minioadmin
 
 # Generate Prisma client and run migrations
 cd packages/server
@@ -302,17 +359,22 @@ stt-summary-server/
 │   │   │   ├── schema.prisma     # Database schema
 │   │   │   └── migrations/       # SQL migrations
 │   │   ├── src/
-│   │   │   ├── app.ts            # Fastify app builder
+│   │   │   ├── app.ts            # Fastify app builder (helmet, rate-limit, CORS)
 │   │   │   ├── server.ts         # Entry point
 │   │   │   ├── config.ts         # Environment config
+│   │   │   ├── middleware/
+│   │   │   │   └── auth.ts       # API Key authentication middleware
 │   │   │   ├── plugins/
 │   │   │   │   ├── db.ts         # Prisma database plugin
 │   │   │   │   └── rabbitmq.ts   # RabbitMQ producer plugin
 │   │   │   ├── routes/
 │   │   │   │   ├── tasks.ts      # Task CRUD endpoints
 │   │   │   │   └── events.ts     # SSE streaming endpoint
-│   │   │   └── services/
-│   │   │       └── storage.ts    # File storage service
+│   │   │   ├── services/
+│   │   │   │   └── storage.ts    # S3 file storage service
+│   │   │   └── utils/
+│   │   │       ├── audio-validation.ts  # WAV/MP3 magic byte validation
+│   │   │       └── step-message.ts      # Human-readable step messages
 │   │   ├── Dockerfile
 │   │   └── package.json
 │   ├── worker/                   # Background task processor
@@ -320,9 +382,11 @@ stt-summary-server/
 │   │   │   ├── index.ts          # Entry point
 │   │   │   ├── config.ts         # Environment config
 │   │   │   ├── consumer.ts       # RabbitMQ consumer + task orchestration
-│   │   │   └── processors/
-│   │   │       ├── stt.ts        # OpenAI Whisper integration
-│   │   │       └── llm.ts        # OpenAI GPT integration
+│   │   │   ├── processors/
+│   │   │   │   ├── stt.ts        # OpenAI Whisper integration
+│   │   │   │   └── llm.ts        # OpenAI GPT integration
+│   │   │   └── services/
+│   │   │       └── storage.ts    # S3 file download service
 │   │   ├── Dockerfile
 │   │   └── package.json
 │   └── frontend/                 # React SPA

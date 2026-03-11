@@ -4,12 +4,13 @@ import { config } from '../config';
 import { getStepMessage } from '../utils/step-message';
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
-  app.get<{ Params: { id: string } }>('/api/tasks/:id/events', async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { sessionId?: string } }>('/api/tasks/:id/events', async (request, reply) => {
     const db = getDb();
     const taskId = request.params.id;
+    const sessionId = request.query.sessionId || '';
 
     const task = await db.task.findUnique({ where: { id: taskId } });
-    if (!task) {
+    if (!task || !sessionId || task.sessionId !== sessionId) {
       return reply.status(404).send({ error: 'Task not found' });
     }
 

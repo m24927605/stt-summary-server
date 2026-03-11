@@ -30,4 +30,5 @@ COPY --from=builder /app/shared ./shared
 # Create symlink so Node.js can resolve 'shared/*' imports at runtime
 RUN mkdir -p /app/node_modules && ln -s /app/shared /app/node_modules/shared
 
+USER node
 CMD ["node", "dist/index.js"]
