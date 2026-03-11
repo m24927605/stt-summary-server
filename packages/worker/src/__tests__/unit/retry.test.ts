@@ -38,6 +38,10 @@ describe('isRetryableError', () => {
     expect(isRetryableError(err)).toBe(false);
   });
 
+  it('returns false for plain-object 400 errors', () => {
+    expect(isRetryableError({ status: 400, message: 'Bad Request' })).toBe(false);
+  });
+
   it('returns false for 401 errors', () => {
     const err = new Error('Unauthorized');
     (err as unknown as Record<string, unknown>).status = 401;
@@ -70,6 +74,10 @@ describe('shouldRetryTaskFailure', () => {
     const err = new Error('Bad Request');
     (err as unknown as Record<string, unknown>).status = 400;
     expect(shouldRetryTaskFailure(err)).toBe(false);
+  });
+
+  it('returns false for plain-object 400 provider errors', () => {
+    expect(shouldRetryTaskFailure({ status: 400, message: 'Audio too short' })).toBe(false);
   });
 
   it('returns true for retryable failures', () => {
