@@ -1,6 +1,6 @@
 # STT Summary Server
 
-A full-stack speech-to-text summarization service that accepts audio files, transcribes them via OpenAI Whisper, generates summaries via GPT, and streams real-time progress to a React frontend using Server-Sent Events (SSE).
+A full-stack speech-to-text summarization service that accepts audio files, transcribes them via OpenAI Whisper with Google STT fallback, generates summaries via OpenAI with Anthropic fallback, and streams real-time progress to a React frontend using Server-Sent Events (SSE). Summary output is hardened by a secure summary pipeline before persistence.
 
 **Live Demo:** [https://voicebrief.xyz](https://voicebrief.xyz)
 
@@ -50,7 +50,23 @@ For details, see [docs/security.md](docs/security.md).
 
 ### Endpoints
 
+#### `GET /api/tasks/session` — Bootstrap session
+
+Initializes a session for browser clients and returns the current CSRF token. If a valid session already exists, it reuses it; if an invalid cookie is present, the server clears it and returns `401`.
+
+```bash
+curl -i http://localhost:3000/api/tasks/session
+```
+
+Returns `200`:
+
+```json
+{ "csrfToken": "..." }
+```
+
 #### `POST /api/tasks` — Upload audio
+
+Call `GET /api/tasks/session` first to obtain the session cookie and CSRF token, then upload:
 
 ```bash
 curl -X POST http://localhost:3000/api/tasks \
@@ -96,7 +112,7 @@ See [docs/security.md](docs/security.md) for full details. Key layers:
 - **Secure summary pipeline** — Output guard + deterministic verifier; raw LLM output never persisted
 - **Log redaction** — Shared deep recursive redaction across server and worker (nested objects, arrays, error objects)
 - **Security headers** — CSP, X-Content-Type-Options, Referrer-Policy via Helmet
-- **Durable rate limiting** — PostgreSQL-backed, survives restarts and horizontal scaling (upload: 10/min, list: 30/min, SSE: 5/min)
+- **Durable rate limiting** — PostgreSQL-backed, survives restarts and horizontal scaling (session bootstrap: 5/min, upload: 10/min, list/detail: 30/min, SSE: 5/min)
 - **Worker memory safety** — Temp-file path instead of whole-buffer; cleanup on success and failure
 - **IAM least privilege** — Separate server/worker ECS task roles with scoped S3 access
 - **Error sanitization** — Internal details never exposed; structured failure codes for verification/timeout
@@ -120,6 +136,15 @@ Configured in `.env` (copy from `.env.example`):
 | `GOOGLE_API_KEY` | Google STT fallback key | — |
 
 See `.env.example` for the complete list.
+
+## Processing Flow
+
+1. Frontend calls `GET /api/tasks/session` to initialize or refresh the session and CSRF token.
+2. Client uploads audio via `POST /api/tasks`; API validates session, CSRF, MIME type, and magic bytes while streaming to S3/MinIO.
+3. API creates a pending task in PostgreSQL and publishes `{taskId}` to RabbitMQ.
+4. Worker downloads the audio, runs STT with OpenAI primary and Google fallback, then stores the transcript.
+5. Worker runs the secure summary pipeline: sanitize transcript, summarize via primary/fallback LLM, guard output, verify deterministically, then persist only guarded and verified summary text.
+6. Frontend listens on `GET /api/tasks/:id/events` and receives `status`, `completed`, or sanitized `failed` events.
 
 ## Development
 
