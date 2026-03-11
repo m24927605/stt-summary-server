@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceBrief - Backend Engineer Slides</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+TC:wght@400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<style>
+  :root {
+    --bg: #07111a;
+    --bg-deep: #04090f;
+    --panel: rgba(9, 18, 28, 0.82);
+    --panel-strong: rgba(10, 20, 31, 0.94);
+    --line: rgba(118, 165, 200, 0.18);
+    --line-strong: rgba(255, 122, 0, 0.35);
+    --text: #f2f7fb;
+    --muted: #8ea2b5;
+    --steel: #a8bece;
+    --ice: #8fd7ff;
+    --teal: #7ef0d1;
+    --amber: #ffb25b;
+    --ember: #ff7a00;
+    --red: #ff8d92;
+    --lime: #9aea8d;
+  }
+
+  html,
+  body {
+    min-height: 100%;
+    background:
+      radial-gradient(circle at 10% 12%, rgba(255, 122, 0, 0.24), transparent 24%),
+      radial-gradient(circle at 84% 18%, rgba(143, 215, 255, 0.16), transparent 22%),
+      radial-gradient(circle at 50% 78%, rgba(126, 240, 209, 0.08), transparent 28%),
+      linear-gradient(145deg, var(--bg-deep) 0%, var(--bg) 48%, #081520 100%);
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 44px 44px;
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  .reveal {
+    color: var(--text);
+    font-family: "IBM Plex Sans TC", sans-serif;
+    font-size: 26px;
+  }
+
+  .reveal .slides {
+    text-align: left;
+  }
+
+  .reveal .slides section {
+    height: 100%;
+  }
+
+  .reveal h1,
+  .reveal h2,
+  .reveal h3,
+  .reveal h4 {
+    font-family: "Sora", "IBM Plex Sans TC", sans-serif;
+    text-transform: none;
+    letter-spacing: -0.02em;
+  }
+
+  .reveal h1 {
+    font-size: 2.7em;
+    margin: 0 0 0.1em;
+    line-height: 0.95;
+  }
+
+  .reveal h2 {
+    margin: 0 0 0.3em;
+    font-size: 1.6em;
+    line-height: 1.03;
+  }
+
+  .reveal h3 {
+    margin: 0 0 0.4em;
+    font-size: 0.72em;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--amber);
+  }
+
+  .reveal h4 {
+    margin: 0 0 0.5em;
+    font-size: 0.82em;
+  }
+
+  .reveal p,
+  .reveal li {
+    line-height: 1.43;
+  }
+
+  .reveal strong {
+    color: #ffffff;
+  }
+
+  .reveal a {
+    color: var(--teal);
+  }
+
+  .reveal code {
+    color: var(--amber);
+    background: rgba(255, 178, 91, 0.08);
+    border-radius: 8px;
+    padding: 0.08em 0.3em;
+  }
+
+  .reveal pre {
+    width: 100%;
+    margin: 0;
+    box-shadow: none;
+    font-size: 0.5em;
+  }
+
+  .reveal pre code {
+    display: block;
+    padding: 1.2em 1.3em;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    color: #dceaf4;
+    background: rgba(3, 8, 13, 0.92);
+  }
+
+  .slide-shell {
+    height: 100%;
+    padding: 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .hero {
+    justify-content: center;
+    gap: 28px;
+  }
+
+  .kicker {
+    font-family: "Sora", sans-serif;
+    font-size: 0.5em;
+    text-transform: uppercase;
+    letter-spacing: 0.24em;
+    color: var(--amber);
+    margin-bottom: 1.1em;
+  }
+
+  .hero-card {
+    position: relative;
+    overflow: hidden;
+    padding: 38px 42px;
+    max-width: 1020px;
+    border-radius: 30px;
+    background:
+      linear-gradient(130deg, rgba(255, 122, 0, 0.12), transparent 30%),
+      linear-gradient(155deg, rgba(15, 33, 49, 0.96), rgba(6, 12, 18, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 36px 80px rgba(0, 0, 0, 0.35);
+  }
+
+  .hero-card::after {
+    content: "";
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    right: -80px;
+    top: -100px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(143, 215, 255, 0.24), transparent 62%);
+    pointer-events: none;
+  }
+
+  .hero-grid,
+  .grid-2,
+  .grid-3,
+  .metric-row,
+  .security-grid,
+  .summary-grid,
+  .compare,
+  .split-shell {
+    display: grid;
+    gap: 16px;
+  }
+
+  .hero-grid {
+    grid-template-columns: 1.2fr 0.8fr;
+    align-items: end;
+  }
+
+  .grid-2,
+  .compare,
+  .split-shell {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid-3,
+  .metric-row,
+  .security-grid,
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero-subtitle {
+    max-width: 760px;
+    color: #d7e3ec;
+    font-size: 1em;
+    margin: 0 0 1.1em;
+  }
+
+  .hero-stats {
+    display: grid;
+    gap: 12px;
+  }
+
+  .big-stat {
+    padding: 18px 20px;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(6, 12, 19, 0.76);
+  }
+
+  .big-stat .value {
+    display: block;
+    font-family: "Sora", sans-serif;
+    font-size: 1.55em;
+    color: var(--ice);
+    margin-bottom: 0.15em;
+  }
+
+  .big-stat .label {
+    font-size: 0.66em;
+    color: var(--steel);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 178, 91, 0.22);
+    background: rgba(255, 178, 91, 0.08);
+    color: #ffe0ba;
+    font-size: 0.7em;
+  }
+
+  .card,
+  .stat-card,
+  .summary-item,
+  .flow-step,
+  .attack-card {
+    padding: 22px 24px;
+    border-radius: 22px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .card p,
+  .stat-card p,
+  .summary-item p,
+  .attack-card p {
+    margin: 0;
+    font-size: 0.82em;
+    color: #d4e1eb;
+  }
+
+  .card ul,
+  .attack-card ul,
+  .list-tight,
+  .data-list {
+    margin: 0.4em 0 0;
+    padding-left: 1.05em;
+    font-size: 0.78em;
+    color: #d2dfeb;
+  }
+
+  .card li,
+  .attack-card li,
+  .list-tight li,
+  .data-list li {
+    margin-bottom: 0.38em;
+  }
+
+  .eyebrow {
+    display: inline-block;
+    margin-bottom: 0.7em;
+    font-family: "Sora", sans-serif;
+    font-size: 0.54em;
+    color: var(--teal);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .impact-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .impact {
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 0.66em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: rgba(143, 215, 255, 0.08);
+    color: #d9f2ff;
+    border: 1px solid rgba(143, 215, 255, 0.16);
+  }
+
+  .banner {
+    padding: 18px 22px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 122, 0, 0.22);
+    background: rgba(255, 122, 0, 0.08);
+    color: #ffd4ad;
+    font-size: 0.82em;
+  }
+
+  .banner.safe {
+    border-color: rgba(126, 240, 209, 0.18);
+    background: rgba(126, 240, 209, 0.08);
+    color: #d8fff2;
+  }
+
+  .subtle {
+    color: var(--muted);
+    font-size: 0.78em;
+  }
+
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .flow-step {
+    min-height: 130px;
+    position: relative;
+    padding: 18px 16px;
+  }
+
+  .flow-step::after {
+    content: "\2192";
+    position: absolute;
+    right: -11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.24);
+    font-size: 1.1em;
+  }
+
+  .flow-step:last-child::after {
+    display: none;
+  }
+
+  .flow-step strong {
+    display: block;
+    margin-bottom: 0.38em;
+    font-size: 0.72em;
+  }
+
+  .flow-step span {
+    display: block;
+    font-size: 0.63em;
+    color: #cfdeea;
+    line-height: 1.45;
+  }
+
+  .attack-grid {
+    display: grid;
+    grid-template-columns: 0.8fr 1.2fr;
+    gap: 18px;
+  }
+
+  .attack-card.hot {
+    border-color: rgba(255, 122, 0, 0.28);
+    background:
+      linear-gradient(180deg, rgba(255, 122, 0, 0.1), transparent 70%),
+      rgba(10, 18, 28, 0.88);
+  }
+
+  .attack-card.safe {
+    border-color: rgba(126, 240, 209, 0.24);
+    background:
+      linear-gradient(180deg, rgba(126, 240, 209, 0.1), transparent 70%),
+      rgba(10, 18, 28, 0.88);
+  }
+
+  .threat-score {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: "Sora", sans-serif;
+    margin-bottom: 0.25em;
+  }
+
+  .threat-score .num {
+    font-size: 2.2em;
+    color: var(--ember);
+  }
+
+  .threat-score .unit {
+    font-size: 0.64em;
+    color: #ffd3b0;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .threat-stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .shield {
+    padding: 16px 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(126, 240, 209, 0.16);
+    background: rgba(126, 240, 209, 0.06);
+  }
+
+  .shield h4 {
+    color: #f5ffff;
+    font-size: 0.76em;
+  }
+
+  .shield p {
+    font-size: 0.72em;
+    color: #d4ebe5;
+  }
+
+  .code-shell {
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(2, 7, 11, 0.94);
+  }
+
+  .code-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--steel);
+    font-size: 0.56em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-family: "Sora", sans-serif;
+  }
+
+  .ops-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 18px;
+  }
+
+  .timeline {
+    display: grid;
+    gap: 10px;
+  }
+
+  .tick {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 14px;
+    align-items: start;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .tick:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .tick .time {
+    font-family: "Sora", sans-serif;
+    color: var(--ice);
+    font-size: 0.72em;
+  }
+
+  .tick .desc {
+    font-size: 0.74em;
+    color: #d4e1eb;
+  }
+
+  .summary-hero {
+    padding: 28px 30px;
+    border-radius: 28px;
+    background:
+      linear-gradient(130deg, rgba(255, 122, 0, 0.12), transparent 34%),
+      linear-gradient(135deg, rgba(11, 24, 36, 0.96), rgba(4, 8, 12, 0.96));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .summary-hero p {
+    max-width: 900px;
+    font-size: 0.95em;
+    color: #d9e5ee;
+    margin: 0.45em 0 0;
+  }
+
+  .slide-number {
+    font-size: 14px !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+  }
+
+  @media (max-width: 1100px) {
+    .hero-grid,
+    .grid-2,
+    .grid-3,
+    .metric-row,
+    .security-grid,
+    .summary-grid,
+    .compare,
+    .split-shell,
+    .attack-grid,
+    .ops-grid,
+    .threat-stack {
+      grid-template-columns: 1fr;
+    }
+
+    .flow {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .flow-step::after {
+      display: none;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<section>
+  <div class="slide-shell hero">
+    <div class="hero-card">
+      <div class="hero-grid">
+        <div>
+          <div class="kicker">Backend Engineer Portfolio / Secure AI Pipeline</div>
+          <h1>VoiceBrief</h1>
+          <p class="hero-subtitle">不是把 Whisper 和 GPT 串起來而已，而是把 <strong>hostile input</strong>、長任務、即時回饋、provider failure、session isolation 一次處理完的 production-grade 語音摘要系統。</p>
+          <div class="pill-row">
+            <span class="pill">Fastify + RabbitMQ</span>
+            <span class="pill">Streaming Upload</span>
+            <span class="pill">SSE Progress</span>
+            <span class="pill">OpenAI / Anthropic / Google Fallback</span>
+            <span class="pill">Prompt Injection Defense</span>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="big-stat">
+            <span class="value">7-stage</span>
+            <span class="label">secure pipeline</span>
+          </div>
+          <div class="big-stat">
+            <span class="value">3-layer</span>
+            <span class="label">LLM safety gate</span>
+          </div>
+          <div class="big-stat">
+            <span class="value">0 buffer-all</span>
+            <span class="label">streaming upload path</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="subtle">Demo: <a href="https://voicebrief.xyz">voicebrief.xyz</a></p>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Project Positioning</div>
+      <h2>我刻意把問題定義成「不可信輸入系統」</h2>
+      <p class="subtle">這個專案的重點不是模型能力展示，而是 backend 是否能在不穩定 provider、惡意 transcript、長耗時工作、跨 session 隔離下仍然維持正確性。</p>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <span class="eyebrow">Streaming</span>
+        <h4>上傳不吃記憶體</h4>
+        <p>Fastify multipart 直接串到 S3，server 不做整檔 buffer，避免大檔與併發上傳把 process 打爆。</p>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Async Work</span>
+        <h4>HTTP 與重任務解耦</h4>
+        <p>RabbitMQ producer-consumer 讓 upload request 很快結束，STT/LLM 留給 worker 後台處理。</p>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Realtime UX</span>
+        <h4>進度即時回推</h4>
+        <p>SSE 將 `queued / stt / llm / completed / failed` 持續推給前端，不靠 polling。</p>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Reliability</span>
+        <h4>Provider 失效時自動切換</h4>
+        <p>STT: OpenAI → Google，LLM: OpenAI → Anthropic，處理 timeout、429、5xx 單點故障。</p>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Isolation</span>
+        <h4>每個 session 只看得到自己的 task</h4>
+        <p>session-scoped task isolation + atomic session rotation，避免資料串線與 stale session 洩漏。</p>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Security</span>
+        <h4>LLM 輸入輸出都視為不可信</h4>
+        <p>Transcript sanitization、output guard、deterministic verifier 串成 secure summary pipeline。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">System Architecture</div>
+      <h2>Producer-Consumer，把 request path 切成 7 個可監控節點</h2>
+    </div>
+    <div class="flow">
+      <div class="flow-step">
+        <span class="eyebrow">Client</span>
+        <strong>1. Upload</strong>
+        <span>使用者上傳或錄製音檔，前端拿到 task id 後立刻進入 SSE 監聽。</span>
+      </div>
+      <div class="flow-step">
+        <span class="eyebrow">Fastify</span>
+        <strong>2. Validate</strong>
+        <span>檢查 magic bytes、大小、session、CSRF、API key，先擋掉明顯無效請求。</span>
+      </div>
+      <div class="flow-step">
+        <span class="eyebrow">Storage</span>
+        <strong>3. Persist File</strong>
+        <span>stream 直接進 S3/MinIO，不在 API server 內保留大型 binary buffer。</span>
+      </div>
+      <div class="flow-step">
+        <span class="eyebrow">Queue</span>
+        <strong>4. Enqueue Task</strong>
+        <span>HTTP 回應與 worker 真正處理脫鉤，降低 timeout 風險與系統耦合。</span>
+      </div>
+      <div class="flow-step">
+        <span class="eyebrow">Worker</span>
+        <strong>5. STT</strong>
+        <span>Whisper 優先，失敗時切到 Google STT，並保留 retry / DLQ 策略。</span>
+      </div>
+      <div class="flow-step">
+        <span class="eyebrow">Worker</span>
+        <strong>6. Secure Summary</strong>
+        <span>sanitize → summarize → guard → verify → persist，確保不把 raw LLM output 直接寫進 DB。</span>
+      </div>
+      <div class="flow-step">
+        <span class="eyebrow">SSE</span>
+        <strong>7. Push Status</strong>
+        <span>前端收到 step 與結果更新，失敗也會回傳 sanitized error，不泄漏內部細節。</span>
+      </div>
+    </div>
+    <div class="banner">設計重點是每一段都能單獨擴容、單獨失敗、單獨觀測，而不是把所有邏輯塞在一條 request handler 內。</div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Input Path</div>
+      <h2>Streaming Upload，不把大檔案當成一般表單處理</h2>
+    </div>
+    <div class="compare">
+      <div class="card">
+        <span class="eyebrow">What I Do</span>
+        <h4>Binary validation at the edge</h4>
+        <ul class="list-tight">
+          <li>只讀前 16 bytes 做 magic byte 檢查，不信任副檔名與 MIME type。</li>
+          <li>驗證失敗直接中止 stream，避免垃圾檔案繼續走完整 pipeline。</li>
+          <li>支援 WAV、MP3、M4A、WebM、OGG。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Why It Matters</span>
+        <h4>Memory stays flat</h4>
+        <ul class="list-tight">
+          <li>API server 不用 `toBuffer()`，不會因為 25MB 檔案併發上傳而爆記憶體。</li>
+          <li>S3 upload 直接吃 readable stream，整條路徑維持 backpressure。</li>
+          <li>更接近 production 真實限制，而不是只在 demo 規模下成立。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="split-shell">
+      <div class="code-shell">
+        <div class="code-head"><span>Bad Pattern</span><span>buffer all</span></div>
+        <pre><code>const buffer = await file.toBuffer();
+await storage.upload({ Body: buffer });</code></pre>
+      </div>
+      <div class="code-shell">
+        <div class="code-head"><span>VoiceBrief</span><span>stream first</span></div>
+        <pre><code>const head = await readHead(fileStream, 16);
+validateMagicBytes(head);
+await storage.upload({ Body: compositeStream });</code></pre>
+      </div>
+    </div>
+    <div class="impact-line">
+      <span class="impact">No full-buffer upload</span>
+      <span class="impact">Early reject on invalid binary</span>
+      <span class="impact">Safer under concurrency</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Security</div>
+      <h2>Session Security 不是點綴，是資料隔離的底盤</h2>
+    </div>
+    <div class="security-grid">
+      <div class="summary-item">
+        <h4>CSRF Double Submit</h4>
+        <p>session cookie + csrf token 雙向比對，避免跨站請求偽造。</p>
+      </div>
+      <div class="summary-item">
+        <h4>HttpOnly / SameSite Cookie</h4>
+        <p>cookie 不給前端 JS 讀，降低 XSS 後 session 被盜用的機率。</p>
+      </div>
+      <div class="summary-item">
+        <h4>Atomic Session Rotation</h4>
+        <p>session 更新時保留任務 ownership 一致性，不讓新舊 session 交錯讀寫。</p>
+      </div>
+      <div class="summary-item">
+        <h4>API Key Gate</h4>
+        <p>後端寫操作需要 API key，避免匿名濫用 upload 與 queue capacity。</p>
+      </div>
+      <div class="summary-item">
+        <h4>Request ID + Sanitized Error</h4>
+        <p>對外只回安全錯誤碼，內部仍可透過 request id 追查完整鏈路。</p>
+      </div>
+      <div class="summary-item">
+        <h4>Persistent Rate Limit</h4>
+        <p>以 PostgreSQL 做固定視窗限流，server 重啟後不失憶，適合多實例部署。</p>
+      </div>
+    </div>
+    <div class="banner safe">我把安全邏輯放在 plugin / utility 層做系統化處理，而不是每條 route 零散地手刻 if-else。</div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">LLM Security</div>
+      <h2>把 transcript 當成 hostile payload，而不是一般文字</h2>
+      <p class="subtle">這頁是我重點想表現的地方。語音摘要最大風險不是模型不夠聰明，而是模型太願意「聽話」。</p>
+    </div>
+    <div class="attack-grid">
+      <div class="attack-card hot">
+        <div class="threat-score">
+          <span class="num">A1</span>
+          <span class="unit">Threat Model</span>
+        </div>
+        <h4>Prompt injection can ride inside transcript</h4>
+        <ul>
+          <li>「Ignore previous instructions」這類文字可能出現在會議錄音或惡意音檔內。</li>
+          <li>如果 worker 直接把 transcript 丟進 LLM，模型可能偏離摘要任務。</li>
+          <li>嚴重時可能回出 meta text、隱藏 prompt 請求、甚至錯誤暴露敏感內容。</li>
+        </ul>
+      </div>
+      <div class="attack-card safe">
+        <span class="eyebrow">Secure Summary Pipeline</span>
+        <div class="threat-stack">
+          <div class="shield">
+            <h4>1. Normalize + sanitize transcript</h4>
+            <p>NFKC normalization、移除 zero-width chars、過濾 `ignore instructions`、`developer message`、`system prompt`、混淆拼寫與 compact phrase。</p>
+          </div>
+          <div class="shield">
+            <h4>2. Strong prompt boundary</h4>
+            <p>把 transcript 包在 `<transcript_data>` 區塊，system prompt 明確宣告它是資料，不是指令。</p>
+          </div>
+          <div class="shield">
+            <h4>3. Output guard before persistence</h4>
+            <p>模型輸出先經過 secret redaction，API key、Bearer token、session token、query secret 全部先移除。</p>
+          </div>
+          <div class="shield">
+            <h4>4. Deterministic verifier</h4>
+            <p>檢查數字與 URL 是否存在於 transcript，並阻擋 `As an AI`、`I cannot comply` 這種 meta-response。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="banner">關鍵原則：<strong>raw LLM output 不直接進資料庫</strong>。先 guard，再 verify，最後才 persist。</div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Defense In Depth</div>
+      <h2>LLM 防護不是一條 regex，而是前後夾擊的 3 層防線</h2>
+    </div>
+    <div class="grid-3">
+      <div class="stat-card">
+        <h4>Input Hardening</h4>
+        <p><strong>Transcript sanitization</strong> 先把高風險 injection phrase、混淆空白、zero-width 字元清掉，再限制長度，減少 prompt 汙染面。</p>
+      </div>
+      <div class="stat-card">
+        <h4>Model Constraint</h4>
+        <p><strong>Structured prompt framing</strong> 把 transcript 放進明確標籤區塊，強制模型只可摘要，不可服從、不可 reveal hidden prompt。</p>
+      </div>
+      <div class="stat-card">
+        <h4>Output Verification</h4>
+        <p><strong>Guard + verifier</strong> 不是相信模型說自己做對了，而是用 deterministic rules 驗證它沒有越界。</p>
+      </div>
+    </div>
+    <div class="split-shell">
+      <div class="code-shell">
+        <div class="code-head"><span>Before</span><span>high risk</span></div>
+        <pre><code>messages: [
+  { role: "system", content: "summarize" },
+  { role: "user", content: transcript }
+]</code></pre>
+      </div>
+      <div class="code-shell">
+        <div class="code-head"><span>After</span><span>defense in depth</span></div>
+        <pre><code>sanitize(transcript)
+formatTranscriptForSummarization(transcript)
+guardModelOutput(summary)
+verifySummaryAgainstTranscript(summary)</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Realtime UX</div>
+      <h2>SSE 讓長任務不是黑盒子</h2>
+    </div>
+    <div class="ops-grid">
+      <div class="card">
+        <span class="eyebrow">Server-Sent Events</span>
+        <h4>單向推送就足夠，而且更簡潔</h4>
+        <ul class="list-tight">
+          <li>這個場景只需要 server → client 的狀態推送，不需要 WebSocket 雙向複雜度。</li>
+          <li>前端收到 `progress`、`completed`、`failed` 後直接更新 task list 與 detail view。</li>
+          <li>重連邏輯簡單，部署與代理層也更穩。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="eyebrow">User Perception</span>
+        <h4>使用者會一直知道系統在做什麼</h4>
+        <div class="timeline">
+          <div class="tick">
+            <div class="time">T+0s</div>
+            <div class="desc">Task 建立，前端立即出現 queued 狀態。</div>
+          </div>
+          <div class="tick">
+            <div class="time">T+1s</div>
+            <div class="desc">Worker 進入 STT，顯示目前處理步驟。</div>
+          </div>
+          <div class="tick">
+            <div class="time">T+N</div>
+            <div class="desc">LLM 摘要或 fallback 啟動時，畫面持續同步更新。</div>
+          </div>
+          <div class="tick">
+            <div class="time">Done</div>
+            <div class="desc">結果或 sanitized failure 一次推到前端，不需要主動輪詢。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="banner safe">在長任務系統裡，回應速度不是只有 API latency，還包含使用者能否感知「系統沒有卡死」。</div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Resilience</div>
+      <h2>Provider Fallback，把外部 API 不穩定變成可吸收事件</h2>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <span class="eyebrow">Speech-to-Text</span>
+        <h4>OpenAI Whisper → Google Speech</h4>
+        <ul class="list-tight">
+          <li>OpenAI timeout / 429 / 5xx 時切換備援。</li>
+          <li>worker 持有統一介面，不把 vendor 細節洩漏到上層流程。</li>
+          <li>上層只知道 `transcribe(file)`，實際走哪家 provider 可替換。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="eyebrow">LLM Summary</span>
+        <h4>OpenAI GPT → Anthropic Claude</h4>
+        <ul class="list-tight">
+          <li>摘要 provider 同樣用抽象介面 + fallback wrapper。</li>
+          <li>可重用相同 security prompt 與 transcript framing。</li>
+          <li>把單一模型故障從 outage 降成 degraded-but-working。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="impact-line">
+      <span class="impact">Retryable error aware</span>
+      <span class="impact">Provider abstraction</span>
+      <span class="impact">Graceful degradation</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Persistence Layer</div>
+      <h2>PostgreSQL + Prisma，不只是存 task，還承擔 isolation 與 rate limit 狀態</h2>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <span class="eyebrow">Data Model</span>
+        <h4>Task 是 pipeline 中心點</h4>
+        <ul class="data-list">
+          <li>`status` / `step` 讓前端可以精準顯示處理階段。</li>
+          <li>`sessionId` 確保 task ownership，SSE 與 REST 都依 session 篩選。</li>
+          <li>只有 guarded + verified summary 會被寫回 `summary` 欄位。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Operational State</span>
+        <h4>Rate limiting 有持久性</h4>
+        <ul class="data-list">
+          <li>不是存在 memory 內，server restart 不會讓攻擊者重新洗白計數。</li>
+          <li>固定視窗與 unique key 設計適合多實例部署。</li>
+          <li>Prisma migration 讓 schema 變更可追蹤、可重建。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div>
+      <div class="kicker">Infra</div>
+      <h2>本地與雲端都可跑，而且架構語意一致</h2>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <span class="eyebrow">Local</span>
+        <h4>Docker Compose</h4>
+        <p>本地用 Compose 起 Fastify、worker、RabbitMQ、PostgreSQL、MinIO，整條 pipeline 可完整演練。</p>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Cloud</span>
+        <h4>AWS ECS + RDS + S3</h4>
+        <p>server / worker 可獨立伸縮，storage 與 database 拆開管理，符合生產環境部署習慣。</p>
+      </div>
+      <div class="card">
+        <span class="eyebrow">Ops</span>
+        <h4>Secrets / IAM / Logging</h4>
+        <p>敏感資訊經過 redaction，IAM 權限最小化，server 與 worker 分離角色。</p>
+      </div>
+    </div>
+    <div class="banner">這不是「本地能跑」就結束，而是從一開始就把 deployment shape 想成雙 service、可替換 provider、可追蹤事件流。</div>
+  </div>
+</section>
+
+<section>
+  <div class="slide-shell">
+    <div class="summary-hero">
+      <div class="kicker">Summary</div>
+      <h2>我想傳達的是：我做的不只是 AI app，而是可以面對真實世界輸入與故障模式的 backend system</h2>
+      <p>VoiceBrief 展示的是我在 backend 上的三個判斷力：<strong>系統分層</strong>、<strong>安全邊界</strong>、<strong>可靠性設計</strong>。特別是在 LLM 這段，我不是只追求「能生成」，而是要求它在 hostile transcript 下仍然可控。</p>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <h4>Architecture</h4>
+        <p>Streaming upload + queue + worker + SSE，讓整條路徑可擴充、可觀測、可維護。</p>
+      </div>
+      <div class="summary-item">
+        <h4>Security</h4>
+        <p>Session isolation、CSRF、error sanitization、LLM input/output hardening 形成完整安全面。</p>
+      </div>
+      <div class="summary-item">
+        <h4>Reliability</h4>
+        <p>Provider fallback、retry、sanitized failure、persistent rate limit，使系統更接近 production 行為。</p>
+      </div>
+    </div>
+    <p class="subtle">GitHub / Code Walkthrough available in repo. Demo URL: <a href="https://voicebrief.xyz">voicebrief.xyz</a></p>
+  </div>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: "c/t",
+    transition: "fade",
+    backgroundTransition: "fade",
+    width: 1280,
+    height: 760,
+    margin: 0.06
+  });
+</script>
+</body>
+</html>

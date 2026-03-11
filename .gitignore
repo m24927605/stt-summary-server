@@ -15,6 +15,7 @@ shared/types.d.ts.map
 *.pdf
 .claude/
 .worktrees/
+.vscode/
 
 # Coverage
 coverage/
