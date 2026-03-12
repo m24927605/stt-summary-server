@@ -3,6 +3,7 @@
 A full-stack speech-to-text summarization service that accepts audio files, transcribes them via OpenAI Whisper with Google STT fallback, generates summaries via OpenAI with Anthropic fallback, and streams real-time progress to a React frontend using Server-Sent Events (SSE). Summary output is hardened by a secure summary pipeline before persistence.
 
 **Live Demo:** [https://voicebrief.xyz](https://voicebrief.xyz)
+**Slides:** [https://voicebrief.xyz/slides/](https://voicebrief.xyz/slides/)
 
 ## Architecture
 
