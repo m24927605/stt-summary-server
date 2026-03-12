@@ -267,6 +267,35 @@ describe('security stack integration', () => {
     await app.close();
   });
 
+  it('accepts a valid session when client IP comes from x-forwarded-for behind ALB', async () => {
+    mockSessionFindUnique.mockImplementation((args: { where: { id: string } }) => {
+      if (args.where.id === 'proxy-session') {
+        return Promise.resolve(makeDbSession({
+          id: 'proxy-session',
+          ipPrefix: '203.0.113',
+        }));
+      }
+      return Promise.resolve(null);
+    });
+    mockTaskFindMany.mockResolvedValue([]);
+
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/tasks',
+      headers: {
+        cookie: 'stt_session=proxy-session',
+        'x-forwarded-for': '203.0.113.42, 10.0.1.15',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockTaskFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: 'proxy-session' } }),
+    );
+    await app.close();
+  });
+
   // --- SSE ignores query string sessionId ---
 
   it('SSE uses cookie session, ignores query string sessionId', async () => {

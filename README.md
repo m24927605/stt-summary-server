@@ -107,6 +107,7 @@ Returns `200 { status: "ok", uptime, timestamp }` or `503 { status: "error" }`.
 See [docs/security.md](docs/security.md) for full details. Key layers:
 
 - **Server-managed sessions** — HttpOnly cookie, bound to UA hash + IP prefix, 24h auto-rotation with atomic task ownership migration
+- **Proxy-aware session binding** — In ECS/ALB deployments, Fastify trusts the ALB proxy so session IP binding tracks the real client IP instead of the load balancer node
 - **CSRF double-submit** — `csrf_token` cookie + `X-CSRF-Token` header, constant-time compare, survives rotation
 - **Streaming uploads** — No `toBuffer()`, 16-byte magic byte validation, stream to S3
 - **Secure summary pipeline** — Output guard + deterministic verifier; raw LLM output never persisted

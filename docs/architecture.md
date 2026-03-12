@@ -178,9 +178,10 @@ The system uses Prisma ORM with the following tables:
 See [docs/security.md](security.md) for the full security architecture. Key highlights:
 
 - **Two auth models**: Cookie session (task routes) and API key (other routes), enforced via strict regex route matching
-- **Server-managed sessions**: HttpOnly `stt_session` cookie, bound to User-Agent hash + IP prefix, stored in PostgreSQL
+- **Server-managed sessions**: HttpOnly `stt_session` cookie, bound to User-Agent hash + proxy-normalized client IP prefix, stored in PostgreSQL
 - **Session bootstrap endpoint**: `GET /api/tasks/session` initializes session state and CSRF token for browser clients
 - **Bootstrap-only rotated-session recovery**: stale rotated cookies can be repaired only through `GET /api/tasks/session`; other routes still reject revoked sessions
+- **Proxy-aware request identity**: Fastify runs with `trustProxy: true` so ECS/ALB deployments bind sessions to the real client IP rather than the ALB node IP
 - **CSRF double-submit**: `csrf_token` JS-readable cookie + `X-CSRF-Token` header with constant-time comparison
 - **Streaming uploads**: 16-byte head read for magic byte validation, stream piped to S3 (no `toBuffer()`)
 - **Secure summary pipeline**: sanitize transcript, generate summary, guard output, verify deterministically, then persist

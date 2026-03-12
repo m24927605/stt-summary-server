@@ -21,6 +21,7 @@ export async function buildApp() {
 
   const app = Fastify({
     logger: loggerOptions,
+    trustProxy: true,
   });
 
   await app.register(helmet, {

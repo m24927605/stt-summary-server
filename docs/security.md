@@ -26,6 +26,8 @@ Server-managed, stored in PostgreSQL. Frontend never generates session IDs.
 
 **Binding:** SHA-256(User-Agent) + IPv4 first-3-octets. Mismatch → 401.
 
+**Proxy awareness:** The API server runs with Fastify `trustProxy: true`, so session binding uses the proxy-normalized client IP from trusted upstream infrastructure such as ALB. This avoids binding sessions to the ALB node IP during ECS rolling deployments. This setting is safe only because the ECS server task accepts inbound traffic from the ALB security group only.
+
 **Scoping:** Session plugin runs only in the task/event route scope (`app.ts` scoped register), not on health or API-key routes.
 
 ### Session Rotation
@@ -98,7 +100,7 @@ Durable PostgreSQL-backed rate limiting via `rate_limit_entries` table. Survives
 
 **Implementation:** Atomic upsert with fixed-window bucketing. Composite unique index on `(bucket, key, window_start)`. Probabilistic cleanup of stale rows (1% chance per check, 1h retention).
 
-**IP source:** Direct connection IP only (`request.ip`). `X-Forwarded-For` is not trusted as a rate limit key.
+**IP source:** Fastify `request.ip` with `trustProxy: true`. In production behind ALB, this resolves to the client IP from the trusted proxy chain; direct untrusted access to the server task is blocked by security groups.
 
 ## Upload Hardening
 
