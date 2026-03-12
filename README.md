@@ -43,9 +43,11 @@ Two auth models depending on route:
 |-------|------|-------------|
 | `GET /api/health` | Public | Health check |
 | `/api/tasks/**` | Cookie session | Server-managed HttpOnly cookie + CSRF |
-| Other `/api/*` | API key | `X-API-Key` header (required when `API_KEY` is set) |
+| Other `/api/*` | API key | Auth middleware exists, but admin/internal non-task endpoints are not yet fully implemented in the current app |
 
 Session management is automatic — the server creates and validates sessions via HttpOnly `stt_session` cookie. State-changing requests (POST/PUT/DELETE) also require `X-CSRF-Token` header matching the `csrf_token` cookie.
+
+The API key path is currently infrastructure for future admin/internal routes rather than a complete management surface. In the shipped app, the main supported browser-facing APIs are the task routes plus `/api/health`.
 
 For details, see [docs/security.md](docs/security.md).
 

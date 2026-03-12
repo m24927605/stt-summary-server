@@ -10,9 +10,11 @@ Two auth models, enforced in `registerAuth` (`src/middleware/auth.ts`):
 |-------|------|------|
 | `GET /api/health` | Public | Strict regex, rejects `/api/healthz` etc. |
 | `/api/tasks/**` | Cookie session | HttpOnly cookie + CSRF (state-changing) |
-| Other `/api/*` | API key | `X-API-Key`, constant-time compare |
+| Other `/api/*` | API key | Middleware exists with constant-time compare, but admin/internal non-task routes are not yet fully built out |
 
 Route matching uses strict regex (`SESSION_PROTECTED_RE`, `HEALTH_RE`) to prevent prefix bypass.
+
+Current implementation status: the API-key path is a security gate for future non-task routes, not a complete admin API surface in the shipped app. The production-facing functionality today is centered on `/api/tasks/**` and `/api/health`.
 
 ## Session Management
 

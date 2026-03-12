@@ -750,10 +750,6 @@ await storage.upload({ Body: compositeStream });</code></pre>
         <p>舊的 rotated cookie 只允許在 <code>GET /api/tasks/session</code> 修復，不把 revoked session 變成通用通行證。</p>
       </div>
       <div class="summary-item">
-        <h4>API Key Gate</h4>
-        <p>task routes 由 session、CSRF 與 Origin 驗證保護；其他非 task 的 `/api/*` 路由才套用 API key。</p>
-      </div>
-      <div class="summary-item">
         <h4>Request ID + Sanitized Error</h4>
         <p>對外只回安全錯誤碼，內部仍可透過 request id 追查完整鏈路。</p>
       </div>
@@ -836,8 +832,8 @@ await storage.upload({ Body: compositeStream });</code></pre>
       <div class="code-shell">
         <div class="code-head"><span>Before</span><span>high risk</span></div>
         <pre><code>messages: [
-  { role: "system", content: "summarize" },
-  { role: "user", content: transcript }
+  { role: "system", content: "3-5 bullet summary + security rules" },
+  { role: "user", content: "&lt;transcript_data&gt;\n" + transcript + "\n&lt;/transcript_data&gt;" }
 ]</code></pre>
       </div>
       <div class="code-shell">
@@ -925,62 +921,6 @@ verifySummaryAgainstTranscript(summary)</code></pre>
       <span class="impact">Provider abstraction</span>
       <span class="impact">Graceful degradation</span>
     </div>
-  </div>
-</section>
-
-<section>
-  <div class="slide-shell">
-    <div>
-      <div class="kicker">Persistence Layer</div>
-      <h2>PostgreSQL + Prisma，不只是存 task，還承擔 isolation 與 rate limit 狀態</h2>
-    </div>
-    <div class="grid-2">
-      <div class="card">
-        <span class="eyebrow">Data Model</span>
-        <h4>Task 是 pipeline 中心點</h4>
-        <ul class="data-list">
-          <li>`status` / `step` 讓前端可以精準顯示處理階段。</li>
-          <li>`sessionId` 確保 task ownership，SSE 與 REST 都依 session 篩選。</li>
-          <li>只有 guarded + verified summary 會被寫回 `summary` 欄位。</li>
-        </ul>
-      </div>
-      <div class="card">
-        <span class="eyebrow">Operational State</span>
-        <h4>Rate limiting 有持久性</h4>
-        <ul class="data-list">
-          <li>不是存在 memory 內，server restart 不會讓攻擊者重新洗白計數。</li>
-          <li>固定視窗與 unique key 設計適合多實例部署。</li>
-          <li>Prisma migration 讓 schema 變更可追蹤、可重建。</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="slide-shell">
-    <div>
-      <div class="kicker">Infra</div>
-      <h2>本地與雲端都可跑，而且架構語意一致</h2>
-    </div>
-    <div class="grid-3">
-      <div class="card">
-        <span class="eyebrow">Local</span>
-        <h4>Docker Compose</h4>
-        <p>本地用 Compose 起 Fastify、worker、RabbitMQ、PostgreSQL、MinIO，整條 pipeline 可完整演練。</p>
-      </div>
-      <div class="card">
-        <span class="eyebrow">Cloud</span>
-        <h4>AWS ECS + RDS + S3</h4>
-        <p>server / worker 可獨立伸縮，storage 與 database 拆開管理，符合生產環境部署習慣。</p>
-      </div>
-      <div class="card">
-        <span class="eyebrow">Ops</span>
-        <h4>Secrets / IAM / Logging</h4>
-        <p>敏感資訊經過 redaction，IAM 權限最小化，server 與 worker 分離角色。</p>
-      </div>
-    </div>
-    <div class="banner">這不是「本地能跑」就結束，而是從一開始就把 deployment shape 想成雙 service、可替換 provider、可追蹤事件流。</div>
   </div>
 </section>
 

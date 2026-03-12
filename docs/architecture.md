@@ -177,7 +177,7 @@ The system uses Prisma ORM with the following tables:
 
 See [docs/security.md](security.md) for the full security architecture. Key highlights:
 
-- **Two auth models**: Cookie session (task routes) and API key (other routes), enforced via strict regex route matching
+- **Two auth models**: Cookie session (task routes) and API key (other routes), enforced via strict regex route matching; the API-key branch is currently a guardrail for future non-task/admin routes rather than a fully implemented management API surface
 - **Server-managed sessions**: HttpOnly `stt_session` cookie, bound to User-Agent hash + proxy-normalized client IP prefix, stored in PostgreSQL
 - **Session bootstrap endpoint**: `GET /api/tasks/session` initializes session state and CSRF token for browser clients
 - **Bootstrap-only rotated-session recovery**: stale rotated cookies can be repaired only through `GET /api/tasks/session`; other routes still reject revoked sessions
